@@ -4,29 +4,47 @@ const User = require('../models/User');
 const Log = require('../models/Log');
 const { jwt: jwtConfig } = require('../config/jwt');
 
+// Helper function to clean and validate email
+const validateEmail = (email) => {
+  const cleanEmail = email.toString().toLowerCase().trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    throw new Error('Invalid email format');
+  }
+  return cleanEmail;
+};
 
 const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Enhanced validation
+    // Validate inputs
     if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Name, email, and password are all required.' });
-    }
-    if (password.trim().length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+      return res.status(400).json({ 
+        error: 'Name, email, and password are required',
+        code: 'MISSING_FIELDS'
+      });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
+    if (password.trim().length < 6) {
+      return res.status(400).json({ 
+        error: 'Password must be at least 6 characters',
+        code: 'PASSWORD_TOO_SHORT'
+      });
+    }
+
+    const cleanEmail = validateEmail(email);
     const cleanPassword = password.trim();
 
     // Check for existing user
     const existingUser = await User.findOne({ email: cleanEmail });
     if (existingUser) {
-      return res.status(400).json({ error: 'User with this email already exists.' });
+      return res.status(400).json({ 
+        error: 'User already exists',
+        code: 'USER_EXISTS'
+      });
     }
 
-    // Create new user
+    // Create new user with hashed password
     const user = await User.create({
       name,
       email: cleanEmail,
@@ -34,16 +52,25 @@ const register = async (req, res) => {
       role: 'user'
     });
 
-    // Optional: Send verification email here (e.g., via a service like Nodemailer)
+    // Log the registration
+    await Log.create({
+      user: user._id,
+      action: 'user_registration',
+      details: `User ${cleanEmail} registered`
+    });
 
     res.status(201).json({
       id: user._id,
       name: user.name,
       email: user.email
     });
+
   } catch (err) {
-    console.error('Registration error:', err);  // Log full error for debugging
-    res.status(500).json({ error: 'An internal server error occurred. Please try again later.', code: err.code });
+    console.error('Registration error:', err);
+    res.status(500).json({ 
+      error: 'Registration failed',
+      code: 'REGISTRATION_ERROR'
+    });
   }
 };
 
@@ -51,44 +78,91 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Validate inputs
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.', code: 'MISSING_FIELDS' });
+      return res.status(400).json({ 
+        error: 'Email and password are required',
+        code: 'MISSING_FIELDS'
+      });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-    const trimmedPassword = password.trim();
+    const cleanEmail = validateEmail(email);
+    const cleanPassword = password.trim();
 
-    // Find user with case-insensitive email search
-    const user = await User.findOne({ email: { $regex: new RegExp(`^${normalizedEmail}$`, 'i') } });
+    // Find user with case-insensitive email
+    const user = await User.findOne({ 
+      email: { $regex: new RegExp(`^${cleanEmail}$`, 'i') }
+    });
 
     if (!user) {
-      console.log(`Login attempt failed: No user found for email ${normalizedEmail}`);  // Server-side log
-      return res.status(400).json({ error: 'Invalid credentials.', code: 'USER_NOT_FOUND' });
+      console.log(`Login failed: User not found for email ${cleanEmail}`);
+      return res.status(400).json({ 
+        error: 'Invalid credentials',
+        code: 'INVALID_CREDENTIALS'
+      });
     }
 
-    const passwordMatch = await bcrypt.compare(trimmedPassword, user.password);
+    // Compare passwords
+    const passwordMatch = await bcrypt.compare(cleanPassword, user.password);
+    
     if (!passwordMatch) {
-      console.log(`Login attempt failed: Password mismatch for email ${normalizedEmail}`);  // Server-side log
-      return res.status(400).json({ error: 'Invalid credentials.', code: 'PASSWORD_MISMATCH' });
+      console.log(`Login failed: Password mismatch for user ${user._id}`);
+      return res.status(400).json({ 
+        error: 'Invalid credentials',
+        code: 'INVALID_CREDENTIALS'
+      });
     }
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
+      { 
+        id: user._id, 
+        email: user.email, 
+        role: user.role 
+      },
       jwtConfig.secret,
       { expiresIn: jwtConfig.expiresIn }
     );
 
+    // Log successful login
+    await Log.create({
+      user: user._id,
+      action: 'user_login',
+      details: `User ${cleanEmail} logged in`
+    });
+
     res.json({ token });
+
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ error: 'An internal server error occurred. Please try again later.', code: err.code });
+    res.status(500).json({ 
+      error: 'Login failed',
+      code: 'LOGIN_ERROR'
+    });
   }
 };
 
-// The updateProfile function remains the same as before, as it wasn't directly implicated in your logs.
-
-module.exports = { register, login, updateProfile };
+const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .select('name email role createdAt updatedAt');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        error: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+    
+    res.json(user);
+  } catch (err) {
+    console.error('Get profile error:', err);
+    res.status(500).json({ 
+      error: 'Failed to fetch profile',
+      code: 'PROFILE_FETCH_ERROR'
+    });
+  }
+};
 
 const updateProfile = async (req, res) => {
   try {
@@ -96,23 +170,34 @@ const updateProfile = async (req, res) => {
     const updates = {};
 
     if (name) updates.name = name;
+    
     if (email) {
-      const cleanEmail = email.toLowerCase().trim();
-      // Check for existing email to prevent duplicates
+      const cleanEmail = validateEmail(email);
       const existingUser = await User.findOne({ email: cleanEmail });
       if (existingUser && existingUser._id.toString() !== req.user.id) {
-        return res.status(400).json({ error: 'Email already in use by another user.' });
+        return res.status(400).json({ 
+          error: 'Email already in use',
+          code: 'EMAIL_IN_USE'
+        });
       }
       updates.email = cleanEmail;
     }
-    if (password && password.trim().length >= 6) {
+    
+    if (password) {
+      if (password.trim().length < 6) {
+        return res.status(400).json({ 
+          error: 'Password must be at least 6 characters',
+          code: 'PASSWORD_TOO_SHORT'
+        });
+      }
       updates.password = await bcrypt.hash(password.trim(), 10);
-    } else if (password) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     }
 
     if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ error: 'No valid updates provided.' });
+      return res.status(400).json({ 
+        error: 'No updates provided',
+        code: 'NO_UPDATES'
+      });
     }
 
     updates.updatedAt = new Date();
@@ -123,10 +208,12 @@ const updateProfile = async (req, res) => {
     );
 
     if (!updatedUser) {
-      return res.status(404).json({ error: 'User not found.' });
+      return res.status(404).json({ 
+        error: 'User not found',
+        code: 'USER_NOT_FOUND'
+      });
     }
 
-    // Log action
     await Log.create({
       user: req.user.id,
       action: 'profile_update',
@@ -135,9 +222,17 @@ const updateProfile = async (req, res) => {
 
     res.json(updatedUser);
   } catch (err) {
-    console.error('Profile update error:', err);
-    res.status(500).json({ error: 'An internal server error occurred. Please try again later.' });
+    console.error('Update profile error:', err);
+    res.status(500).json({ 
+      error: 'Failed to update profile',
+      code: 'PROFILE_UPDATE_ERROR'
+    });
   }
 };
 
-module.exports = { register, login, updateProfile };
+module.exports = { 
+  register, 
+  login, 
+  getProfile, 
+  updateProfile 
+};
