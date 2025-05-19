@@ -20,56 +20,56 @@ const register = async (req, res) => {
     // Validate inputs
     if (!name || !email || !password) {
       return res.status(400).json({ 
-        error: 'Name, email, and password are required',
-        code: 'MISSING_FIELDS'
+        error: 'All fields are required',
+        code: 'MISSING_FIELDS' 
       });
     }
 
-    if (password.trim().length < 6) {
-      return res.status(400).json({ 
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanPassword = password.trim();
+
+    // Additional validation
+    if (cleanPassword.length < 6) {
+      return res.status(400).json({
         error: 'Password must be at least 6 characters',
         code: 'PASSWORD_TOO_SHORT'
       });
     }
 
-    const cleanEmail = validateEmail(email);
-    const cleanPassword = password.trim();
-
     // Check for existing user
-    const existingUser = await User.findOne({ email: cleanEmail });
-    if (existingUser) {
-      return res.status(400).json({ 
-        error: 'User already exists',
-        code: 'USER_EXISTS'
+    if (await User.findOne({ email: cleanEmail })) {
+      return res.status(400).json({
+        error: 'Email already registered',
+        code: 'EMAIL_EXISTS'
       });
     }
 
-    // Create new user with hashed password
+    // Generate salt and hash
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(cleanPassword, salt);
+
+    // Create user with explicit password hashing
     const user = await User.create({
       name,
       email: cleanEmail,
-      password: await bcrypt.hash(cleanPassword, 10),
+      password: hash, // Use the pre-hashed value
       role: 'user'
     });
 
-    // Log the registration
-    await Log.create({
-      user: user._id,
-      action: 'user_registration',
-      details: `User ${cleanEmail} registered`
-    });
-
+    // Return response without sensitive data
     res.status(201).json({
       id: user._id,
       name: user.name,
-      email: user.email
+      email: user.email,
+      createdAt: user.createdAt
     });
 
   } catch (err) {
     console.error('Registration error:', err);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Registration failed',
-      code: 'REGISTRATION_ERROR'
+      code: 'REGISTRATION_ERROR',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
@@ -78,15 +78,14 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validate inputs
     if (!email || !password) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Email and password are required',
         code: 'MISSING_FIELDS'
       });
     }
 
-    const cleanEmail = validateEmail(email);
+    const cleanEmail = email.toLowerCase().trim();
     const cleanPassword = password.trim();
 
     // Find user with case-insensitive email
@@ -95,53 +94,55 @@ const login = async (req, res) => {
     });
 
     if (!user) {
-      console.log(`Login failed: User not found for email ${cleanEmail}`);
-      return res.status(400).json({ 
+      console.log(`Login failed: User not found for ${cleanEmail}`);
+      return res.status(400).json({
         error: 'Invalid credentials',
         code: 'INVALID_CREDENTIALS'
       });
     }
 
-    // Compare passwords
-    const passwordMatch = await bcrypt.compare(cleanPassword, user.password);
+    // Debug output
+    console.log('Stored hash:', user.password);
+    console.log('Input password:', cleanPassword);
     
-    if (!passwordMatch) {
-      console.log(`Login failed: Password mismatch for user ${user._id}`);
-      return res.status(400).json({ 
+    // Compare passwords
+    const isMatch = await bcrypt.compare(cleanPassword, user.password);
+    console.log('Password match:', isMatch);
+
+    if (!isMatch) {
+      // Create a test hash to verify bcrypt is working
+      const testHash = await bcrypt.hash('test123', 10);
+      const testMatch = await bcrypt.compare('test123', testHash);
+      console.log('Test hash comparison:', testMatch);
+
+      return res.status(400).json({
         error: 'Invalid credentials',
-        code: 'INVALID_CREDENTIALS'
+        code: 'INVALID_CREDENTIALS',
+        debug: process.env.NODE_ENV === 'development' ? {
+          storedHash: user.password,
+          testComparison: testMatch
+        } : undefined
       });
     }
 
     // Generate JWT token
     const token = jwt.sign(
-      { 
-        id: user._id, 
-        email: user.email, 
-        role: user.role 
-      },
+      { id: user._id, email: user.email, role: user.role },
       jwtConfig.secret,
       { expiresIn: jwtConfig.expiresIn }
     );
-
-    // Log successful login
-    await Log.create({
-      user: user._id,
-      action: 'user_login',
-      details: `User ${cleanEmail} logged in`
-    });
 
     res.json({ token });
 
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Login failed',
-      code: 'LOGIN_ERROR'
+      code: 'LOGIN_ERROR',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
-
 const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
