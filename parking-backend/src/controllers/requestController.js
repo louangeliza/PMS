@@ -1,37 +1,41 @@
-const db = require('../config/db');
-const { logAction } = require('../services/logService');
+const SlotRequest = require('../models/SlotRequest');
+const Vehicle = require('../models/Vehicle');
+const ParkingSlot = require('../models/ParkingSlot');
+const Log = require('../models/Log');
 const { sendApprovalEmail } = require('../services/emailService');
 
 const createRequest = async (req, res) => {
-  const { vehicle_id } = req.body;
+  const { vehicleId } = req.body;
   
   try {
-    // Verify vehicle belongs to user
-    const vehicle = await db.query('SELECT * FROM vehicles WHERE id = $1 AND user_id = $2', [vehicle_id, req.user.id]);
-    if (vehicle.rows.length === 0) {
+    const vehicle = await Vehicle.findOne({ _id: vehicleId, user: req.user.id });
+    if (!vehicle) {
       return res.status(404).json({ error: 'Vehicle not found or access denied' });
     }
 
-    // Check for existing pending request for this vehicle
-    const existingRequest = await db.query(
-      'SELECT * FROM slot_requests WHERE vehicle_id = $1 AND status = $2',
-      [vehicle_id, 'pending']
-    );
+    const existingRequest = await SlotRequest.findOne({
+      vehicle: vehicleId,
+      status: 'pending'
+    });
     
-    if (existingRequest.rows.length > 0) {
+    if (existingRequest) {
       return res.status(400).json({ error: 'A pending request already exists for this vehicle' });
     }
 
-    // Create new request
-    const newRequest = await db.query(
-      'INSERT INTO slot_requests (user_id, vehicle_id, status) VALUES ($1, $2, $3) RETURNING *',
-      [req.user.id, vehicle_id, 'pending']
-    );
+    const newRequest = await SlotRequest.create({
+      user: req.user.id,
+      vehicle: vehicleId,
+      status: 'pending'
+    });
 
     // Log action
-    await logAction(req.user.id, 'request_create', `Created slot request for vehicle ${vehicle.rows[0].plate_number}`);
+    await Log.create({
+      user: req.user.id,
+      action: 'request_create',
+      details: `Created slot request for vehicle ${vehicle.plateNumber}`
+    });
 
-    res.status(201).json(newRequest.rows[0]);
+    res.status(201).json(newRequest);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -39,34 +43,41 @@ const createRequest = async (req, res) => {
 
 const updateRequest = async (req, res) => {
   const { id } = req.params;
-  const { vehicle_id } = req.body;
+  const { vehicleId } = req.body;
   
   try {
-    // Verify request belongs to user and is pending
-    const request = await db.query(
-      'SELECT * FROM slot_requests WHERE id = $1 AND user_id = $2 AND status = $3',
-      [id, req.user.id, 'pending']
-    );
+    const request = await SlotRequest.findOne({
+      _id: id,
+      user: req.user.id,
+      status: 'pending'
+    });
     
-    if (request.rows.length === 0) {
+    if (!request) {
       return res.status(404).json({ error: 'Request not found, access denied, or not pending' });
     }
 
-    // Verify new vehicle belongs to user
-    const vehicle = await db.query('SELECT * FROM vehicles WHERE id = $1 AND user_id = $2', [vehicle_id, req.user.id]);
-    if (vehicle.rows.length === 0) {
+    const vehicle = await Vehicle.findOne({ _id: vehicleId, user: req.user.id });
+    if (!vehicle) {
       return res.status(404).json({ error: 'Vehicle not found or access denied' });
     }
 
-    const updatedRequest = await db.query(
-      'UPDATE slot_requests SET vehicle_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-      [vehicle_id, id]
+    const updatedRequest = await SlotRequest.findByIdAndUpdate(
+      id,
+      {
+        vehicle: vehicleId,
+        updatedAt: new Date()
+      },
+      { new: true }
     );
 
     // Log action
-    await logAction(req.user.id, 'request_update', `Updated slot request for vehicle ${vehicle.rows[0].plate_number}`);
+    await Log.create({
+      user: req.user.id,
+      action: 'request_update',
+      details: `Updated slot request for vehicle ${vehicle.plateNumber}`
+    });
 
-    res.json(updatedRequest.rows[0]);
+    res.json(updatedRequest);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -76,20 +87,22 @@ const deleteRequest = async (req, res) => {
   const { id } = req.params;
   
   try {
-    // Verify request belongs to user and is pending
-    const request = await db.query(
-      'SELECT * FROM slot_requests WHERE id = $1 AND user_id = $2 AND status = $3',
-      [id, req.user.id, 'pending']
-    );
+    const request = await SlotRequest.findOneAndDelete({
+      _id: id,
+      user: req.user.id,
+      status: 'pending'
+    });
     
-    if (request.rows.length === 0) {
+    if (!request) {
       return res.status(404).json({ error: 'Request not found, access denied, or not pending' });
     }
 
-    await db.query('DELETE FROM slot_requests WHERE id = $1', [id]);
-
     // Log action
-    await logAction(req.user.id, 'request_delete', 'Deleted slot request');
+    await Log.create({
+      user: req.user.id,
+      action: 'request_delete',
+      details: 'Deleted slot request'
+    });
 
     res.json({ message: 'Request deleted successfully' });
   } catch (err) {
@@ -99,60 +112,46 @@ const deleteRequest = async (req, res) => {
 
 const getRequests = async (req, res) => {
   const { page = 1, limit = 10, search = '', status } = req.query;
-  const offset = (page - 1) * limit;
   
   try {
-    let query = `
-      SELECT sr.*, v.plate_number, v.vehicle_type, v.size, u.name as user_name, u.email as user_email, ps.slot_number
-      FROM slot_requests sr
-      JOIN vehicles v ON sr.vehicle_id = v.id
-      JOIN users u ON sr.user_id = u.id
-      LEFT JOIN parking_slots ps ON sr.slot_id = ps.id
-    `;
+    const query = {};
     
-    const queryParams = [];
-    let whereClauses = [];
-    let paramCount = 1;
-
-    // For regular users, only show their own requests
     if (req.user.role === 'user') {
-      whereClauses.push(`sr.user_id = $${paramCount}`);
-      queryParams.push(req.user.id);
-      paramCount++;
+      query.user = req.user.id;
     }
 
     if (search) {
-      whereClauses.push(`(v.plate_number ILIKE $${paramCount} OR u.name ILIKE $${paramCount} OR v.vehicle_type ILIKE $${paramCount})`);
-      queryParams.push(`%${search}%`);
-      paramCount++;
+      query.$or = [
+        { 'vehicle.plateNumber': { $regex: search, $options: 'i' } },
+        { 'user.name': { $regex: search, $options: 'i' } },
+        { 'vehicle.vehicleType': { $regex: search, $options: 'i' } }
+      ];
     }
 
     if (status) {
-      whereClauses.push(`sr.status = $${paramCount}`);
-      queryParams.push(status);
-      paramCount++;
+      query.status = status;
     }
 
-    if (whereClauses.length > 0) {
-      query += ' WHERE ' + whereClauses.join(' AND ');
-    }
-
-    // Get total count for pagination
-    const countQuery = query.replace(/SELECT.*FROM/, 'SELECT COUNT(*) as total FROM');
-    const countResult = await db.query(countQuery, queryParams);
-    const total = parseInt(countResult.rows[0].total, 10);
-
-    // Add pagination
-    query += ` ORDER BY sr.created_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
-    queryParams.push(limit, offset);
-
-    const requests = await db.query(query, queryParams);
+    const [requests, total] = await Promise.all([
+      SlotRequest.find(query)
+        .populate('user', 'name email')
+        .populate('vehicle', 'plateNumber vehicleType size')
+        .populate('slot', 'slotNumber')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      SlotRequest.countDocuments(query)
+    ]);
 
     // Log action
-    await logAction(req.user.id, 'requests_list_view', 'Viewed requests list');
+    await Log.create({
+      user: req.user.id,
+      action: 'requests_list_view',
+      details: 'Viewed requests list'
+    });
 
     res.json({
-      data: requests.rows,
+      data: requests,
       pagination: {
         total,
         page: parseInt(page, 10),
@@ -169,59 +168,55 @@ const approveRequest = async (req, res) => {
   const { id } = req.params;
   
   try {
-    // Get the request
-    const request = await db.query(
-      'SELECT sr.*, v.plate_number, v.vehicle_type, v.size, u.email FROM slot_requests sr JOIN vehicles v ON sr.vehicle_id = v.id JOIN users u ON sr.user_id = u.id WHERE sr.id = $1',
-      [id]
-    );
+    const request = await SlotRequest.findById(id)
+      .populate('user', 'email')
+      .populate('vehicle', 'plateNumber vehicleType size');
     
-    if (request.rows.length === 0) {
+    if (!request) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    if (request.rows[0].status !== 'pending') {
+    if (request.status !== 'pending') {
       return res.status(400).json({ error: 'Request is not pending' });
     }
 
-    // Find an available compatible slot
-    const slot = await db.query(
-      `SELECT * FROM parking_slots 
-       WHERE status = 'available' 
-       AND vehicle_type = $1 
-       AND size = $2 
-       ORDER BY slot_number ASC 
-       LIMIT 1`,
-      [request.rows[0].vehicle_type, request.rows[0].size]
-    );
+    const slot = await ParkingSlot.findOne({
+      status: 'available',
+      vehicleType: request.vehicle.vehicleType,
+      size: request.vehicle.size
+    }).sort({ slotNumber: 1 });
 
-    if (slot.rows.length === 0) {
+    if (!slot) {
       return res.status(400).json({ error: 'No available slots matching vehicle requirements' });
     }
 
     // Update the slot to unavailable
-    await db.query(
-      'UPDATE parking_slots SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      ['unavailable', slot.rows[0].id]
-    );
+    slot.status = 'unavailable';
+    slot.updatedAt = new Date();
+    await slot.save();
 
     // Update the request
-    const updatedRequest = await db.query(
-      'UPDATE slot_requests SET status = $1, slot_id = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
-      ['approved', slot.rows[0].id, id]
-    );
+    request.status = 'approved';
+    request.slot = slot._id;
+    request.updatedAt = new Date();
+    await request.save();
 
     // Send approval email
     await sendApprovalEmail(
-      request.rows[0].email,
-      slot.rows[0].slot_number,
-      request.rows[0].plate_number,
-      request.rows[0].vehicle_type
+      request.user.email,
+      slot.slotNumber,
+      request.vehicle.plateNumber,
+      request.vehicle.vehicleType
     );
 
     // Log action
-    await logAction(req.user.id, 'request_approve', `Approved request for vehicle ${request.rows[0].plate_number}`);
+    await Log.create({
+      user: req.user.id,
+      action: 'request_approve',
+      details: `Approved request for vehicle ${request.vehicle.plateNumber}`
+    });
 
-    res.json(updatedRequest.rows[0]);
+    res.json(request);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -231,26 +226,27 @@ const rejectRequest = async (req, res) => {
   const { id } = req.params;
   
   try {
-    // Get the request
-    const request = await db.query('SELECT * FROM slot_requests WHERE id = $1', [id]);
-    if (request.rows.length === 0) {
+    const request = await SlotRequest.findById(id);
+    if (!request) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    if (request.rows[0].status !== 'pending') {
+    if (request.status !== 'pending') {
       return res.status(400).json({ error: 'Request is not pending' });
     }
 
-    // Update the request
-    const updatedRequest = await db.query(
-      'UPDATE slot_requests SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-      ['rejected', id]
-    );
+    request.status = 'rejected';
+    request.updatedAt = new Date();
+    await request.save();
 
     // Log action
-    await logAction(req.user.id, 'request_reject', `Rejected request ${id}`);
+    await Log.create({
+      user: req.user.id,
+      action: 'request_reject',
+      details: `Rejected request ${id}`
+    });
 
-    res.json(updatedRequest.rows[0]);
+    res.json(request);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

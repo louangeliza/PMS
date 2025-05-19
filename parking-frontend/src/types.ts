@@ -1,7 +1,17 @@
 // src/types.ts
-export interface Vehicle {
-  id: number;
+export interface BaseDocument {
+  id: string;  // MongoDB ObjectId as string
+  created_at: string;
+  updated_at: string;
+}
+
+export type VehicleStatus = 'available' | 'pending' | 'rejected';
+
+export interface Vehicle extends BaseDocument {
   plate_number: string;
+  model: string;
+  color: string;
+  owner_id: string;
   vehicle_type: string;
   size: 'small' | 'medium' | 'large';
   attributes?: {
@@ -9,19 +19,20 @@ export interface Vehicle {
   };
 }
 
-export interface Request {
-  id: number;
-  vehicle_id: number;
-  vehicle: Vehicle; // Embedded vehicle info
+export interface Request extends BaseDocument {
+  vehicle_id: string;
+  vehicle: Vehicle;
   start_time: string;
   end_time: string;
   status: 'pending' | 'approved' | 'rejected';
   special_requests?: string;
-  created_at: string;
-  updated_at: string;
 }
 
-export type VehicleStatus = 'available' | 'pending' | 'rejected';
+export interface User extends BaseDocument {
+  name: string;
+  email: string;
+  role: 'user' | 'admin';
+}
 
 export interface PaginatedResponse<T> {
   data: T[];
@@ -30,11 +41,4 @@ export interface PaginatedResponse<T> {
     totalPages: number;
     totalItems: number;
   };
-}
-
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  phone?: string;
 }

@@ -1,6 +1,6 @@
-const db = require('../config/db');
-const { logAction } = require('../services/logService');
-const { sendApprovalEmail } = require('../services/emailService');
+const ParkingSlot = require('../models/ParkingSlot');
+const Vehicle = require('../models/Vehicle');
+const Log = require('../models/Log');
 
 const addSlots = async (req, res) => {
   const { slots } = req.body;
@@ -10,23 +10,18 @@ const addSlots = async (req, res) => {
   }
 
   try {
-    const insertedSlots = [];
-    
-    for (const slot of slots) {
-      const { slot_number, size, vehicle_type, location } = slot;
-      
-      const newSlot = await db.query(
-        'INSERT INTO parking_slots (slot_number, size, vehicle_type, location) VALUES ($1, $2, $3, $4) RETURNING *',
-        [slot_number, size, vehicle_type, location]
-      );
-      
-      insertedSlots.push(newSlot.rows[0]);
-    }
+    const insertedSlots = await ParkingSlot.insertMany(slots);
 
-    await logAction(req.user.id, 'slots_bulk_add', `Added ${slots.length} parking slots`);
+    // Log action
+    await Log.create({
+      user: req.user.id,
+      action: 'slots_bulk_add',
+      details: `Added ${slots.length} parking slots`
+    });
+
     res.status(201).json(insertedSlots);
   } catch (err) {
-    if (err.code === '23505') {
+    if (err.code === 11000) {
       return res.status(400).json({ error: 'One or more slot numbers already exist' });
     }
     res.status(500).json({ error: err.message });
@@ -35,22 +30,36 @@ const addSlots = async (req, res) => {
 
 const updateSlot = async (req, res) => {
   const { id } = req.params;
-  const { slot_number, size, vehicle_type, status, location } = req.body;
+  const { slotNumber, size, vehicleType, status, location } = req.body;
   
   try {
-    const updatedSlot = await db.query(
-      'UPDATE parking_slots SET slot_number = $1, size = $2, vehicle_type = $3, status = $4, location = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 RETURNING *',
-      [slot_number, size, vehicle_type, status, location, id]
+    const updatedSlot = await ParkingSlot.findByIdAndUpdate(
+      id,
+      {
+        slotNumber,
+        size,
+        vehicleType,
+        status,
+        location,
+        updatedAt: new Date()
+      },
+      { new: true }
     );
 
-    if (updatedSlot.rows.length === 0) {
+    if (!updatedSlot) {
       return res.status(404).json({ error: 'Slot not found' });
     }
 
-    await logAction(req.user.id, 'slot_update', `Updated slot ${slot_number}`);
-    res.json(updatedSlot.rows[0]);
+    // Log action
+    await Log.create({
+      user: req.user.id,
+      action: 'slot_update',
+      details: `Updated slot ${slotNumber}`
+    });
+
+    res.json(updatedSlot);
   } catch (err) {
-    if (err.code === '23505') {
+    if (err.code === 11000) {
       return res.status(400).json({ error: 'Slot with this number already exists' });
     }
     res.status(500).json({ error: err.message });
@@ -61,13 +70,18 @@ const deleteSlot = async (req, res) => {
   const { id } = req.params;
   
   try {
-    const slot = await db.query('SELECT * FROM parking_slots WHERE id = $1', [id]);
-    if (slot.rows.length === 0) {
+    const slot = await ParkingSlot.findByIdAndDelete(id);
+    if (!slot) {
       return res.status(404).json({ error: 'Slot not found' });
     }
 
-    await db.query('DELETE FROM parking_slots WHERE id = $1', [id]);
-    await logAction(req.user.id, 'slot_delete', `Deleted slot ${slot.rows[0].slot_number}`);
+    // Log action
+    await Log.create({
+      user: req.user.id,
+      action: 'slot_delete',
+      details: `Deleted slot ${slot.slotNumber}`
+    });
+
     res.json({ message: 'Slot deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -75,61 +89,48 @@ const deleteSlot = async (req, res) => {
 };
 
 const getSlots = async (req, res) => {
-  const { page = 1, limit = 10, search = '', status, vehicle_type, size } = req.query;
-  const offset = (page - 1) * limit;
+  const { page = 1, limit = 10, search = '', status, vehicleType, size } = req.query;
   
   try {
-    let query = 'SELECT * FROM parking_slots';
-    const queryParams = [];
-    let whereClauses = [];
-    let paramCount = 1;
-
+    const query = {};
+    
     if (req.user.role === 'user') {
-      whereClauses.push('status = $1');
-      queryParams.push('available');
-      paramCount++;
+      query.status = 'available';
     }
 
     if (search) {
-      whereClauses.push(`slot_number ILIKE $${paramCount}`);
-      queryParams.push(`%${search}%`);
-      paramCount++;
+      query.slotNumber = { $regex: search, $options: 'i' };
     }
 
     if (status) {
-      whereClauses.push(`status = $${paramCount}`);
-      queryParams.push(status);
-      paramCount++;
+      query.status = status;
     }
 
-    if (vehicle_type) {
-      whereClauses.push(`vehicle_type ILIKE $${paramCount}`);
-      queryParams.push(`%${vehicle_type}%`);
-      paramCount++;
+    if (vehicleType) {
+      query.vehicleType = { $regex: vehicleType, $options: 'i' };
     }
 
     if (size) {
-      whereClauses.push(`size = $${paramCount}`);
-      queryParams.push(size);
-      paramCount++;
+      query.size = size;
     }
 
-    if (whereClauses.length > 0) {
-      query += ' WHERE ' + whereClauses.join(' AND ');
-    }
+    const [slots, total] = await Promise.all([
+      ParkingSlot.find(query)
+        .sort({ slotNumber: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      ParkingSlot.countDocuments(query)
+    ]);
 
-    const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
-    const countResult = await db.query(countQuery, queryParams);
-    const total = parseInt(countResult.rows[0].total, 10);
-
-    query += ` ORDER BY slot_number ASC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
-    queryParams.push(limit, offset);
-
-    const slots = await db.query(query, queryParams);
-    await logAction(req.user.id, 'slots_list_view', 'Viewed slots list');
+    // Log action
+    await Log.create({
+      user: req.user.id,
+      action: 'slots_list_view',
+      details: 'Viewed slots list'
+    });
 
     res.json({
-      data: slots.rows,
+      data: slots,
       pagination: {
         total,
         page: parseInt(page, 10),
@@ -146,20 +147,18 @@ const getAvailableSlotsForVehicle = async (req, res) => {
   const { vehicleId } = req.params;
   
   try {
-    const vehicle = await db.query('SELECT * FROM vehicles WHERE id = $1 AND user_id = $2', [vehicleId, req.user.id]);
-    if (vehicle.rows.length === 0) {
+    const vehicle = await Vehicle.findOne({ _id: vehicleId, user: req.user.id });
+    if (!vehicle) {
       return res.status(404).json({ error: 'Vehicle not found or access denied' });
     }
 
-    const slots = await db.query(
-      `SELECT * FROM parking_slots 
-       WHERE status = 'available' 
-       AND vehicle_type = $1 
-       AND size = $2`,
-      [vehicle.rows[0].vehicle_type, vehicle.rows[0].size]
-    );
+    const slots = await ParkingSlot.find({
+      status: 'available',
+      vehicleType: vehicle.vehicleType,
+      size: vehicle.size
+    });
 
-    res.json(slots.rows);
+    res.json(slots);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,11 +1,12 @@
-const db = require('../config/db');
+const Log = require('../models/Log');
 
 const logAction = async (userId, action, details = null) => {
   try {
-    await db.query(
-      'INSERT INTO logs (user_id, action, details) VALUES ($1, $2, $3)',
-      [userId, action, details]
-    );
+    await Log.create({
+      user: userId,
+      action,
+      details
+    });
   } catch (err) {
     console.error('Error logging action:', err);
   }

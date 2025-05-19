@@ -1,21 +1,28 @@
-const db = require('../config/db');
-const { logAction } = require('../services/logService');
+const Vehicle = require('../models/Vehicle');
+const Log = require('../models/Log');
 
 const addVehicle = async (req, res) => {
-  const { plate_number, vehicle_type, size, attributes } = req.body;
+  const { plateNumber, vehicleType, size, attributes } = req.body;
   
   try {
-    const newVehicle = await db.query(
-      'INSERT INTO vehicles (user_id, plate_number, vehicle_type, size, attributes) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [req.user.id, plate_number, vehicle_type, size, attributes || {}]
-    );
+    const newVehicle = await Vehicle.create({
+      user: req.user.id,
+      plateNumber,
+      vehicleType,
+      size,
+      attributes: attributes || {}
+    });
 
     // Log action
-    await logAction(req.user.id, 'vehicle_add', `Added vehicle ${plate_number}`);
+    await Log.create({
+      user: req.user.id,
+      action: 'vehicle_add',
+      details: `Added vehicle ${plateNumber}`
+    });
 
-    res.status(201).json(newVehicle.rows[0]);
+    res.status(201).json(newVehicle);
   } catch (err) {
-    if (err.code === '23505') { // Unique violation
+    if (err.code === 11000) {
       return res.status(400).json({ error: 'Vehicle with this plate number already exists' });
     }
     res.status(500).json({ error: err.message });
@@ -24,26 +31,36 @@ const addVehicle = async (req, res) => {
 
 const updateVehicle = async (req, res) => {
   const { id } = req.params;
-  const { plate_number, vehicle_type, size, attributes } = req.body;
+  const { plateNumber, vehicleType, size, attributes } = req.body;
   
   try {
-    // Verify vehicle belongs to user
-    const vehicle = await db.query('SELECT * FROM vehicles WHERE id = $1 AND user_id = $2', [id, req.user.id]);
-    if (vehicle.rows.length === 0) {
+    const vehicle = await Vehicle.findOne({ _id: id, user: req.user.id });
+    if (!vehicle) {
       return res.status(404).json({ error: 'Vehicle not found or access denied' });
     }
 
-    const updatedVehicle = await db.query(
-      'UPDATE vehicles SET plate_number = $1, vehicle_type = $2, size = $3, attributes = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
-      [plate_number, vehicle_type, size, attributes || {}, id]
+    const updatedVehicle = await Vehicle.findByIdAndUpdate(
+      id,
+      {
+        plateNumber,
+        vehicleType,
+        size,
+        attributes: attributes || {},
+        updatedAt: new Date()
+      },
+      { new: true }
     );
 
     // Log action
-    await logAction(req.user.id, 'vehicle_update', `Updated vehicle ${plate_number}`);
+    await Log.create({
+      user: req.user.id,
+      action: 'vehicle_update',
+      details: `Updated vehicle ${plateNumber}`
+    });
 
-    res.json(updatedVehicle.rows[0]);
+    res.json(updatedVehicle);
   } catch (err) {
-    if (err.code === '23505') {
+    if (err.code === 11000) {
       return res.status(400).json({ error: 'Vehicle with this plate number already exists' });
     }
     res.status(500).json({ error: err.message });
@@ -54,16 +71,17 @@ const deleteVehicle = async (req, res) => {
   const { id } = req.params;
   
   try {
-    // Verify vehicle belongs to user
-    const vehicle = await db.query('SELECT * FROM vehicles WHERE id = $1 AND user_id = $2', [id, req.user.id]);
-    if (vehicle.rows.length === 0) {
+    const vehicle = await Vehicle.findOneAndDelete({ _id: id, user: req.user.id });
+    if (!vehicle) {
       return res.status(404).json({ error: 'Vehicle not found or access denied' });
     }
 
-    await db.query('DELETE FROM vehicles WHERE id = $1', [id]);
-
     // Log action
-    await logAction(req.user.id, 'vehicle_delete', `Deleted vehicle ${vehicle.rows[0].plate_number}`);
+    await Log.create({
+      user: req.user.id,
+      action: 'vehicle_delete',
+      details: `Deleted vehicle ${vehicle.plateNumber}`
+    });
 
     res.json({ message: 'Vehicle deleted successfully' });
   } catch (err) {
@@ -73,35 +91,33 @@ const deleteVehicle = async (req, res) => {
 
 const getUserVehicles = async (req, res) => {
   const { page = 1, limit = 10, search = '' } = req.query;
-  const offset = (page - 1) * limit;
   
   try {
-    let query = 'SELECT * FROM vehicles WHERE user_id = $1';
-    const queryParams = [req.user.id];
-    let paramCount = 2;
-
+    const query = { user: req.user.id };
     if (search) {
-      query += ` AND (plate_number ILIKE $${paramCount} OR vehicle_type ILIKE $${paramCount})`;
-      queryParams.push(`%${search}%`);
-      paramCount++;
+      query.$or = [
+        { plateNumber: { $regex: search, $options: 'i' } },
+        { vehicleType: { $regex: search, $options: 'i' } }
+      ];
     }
 
-    // Get total count for pagination
-    const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
-    const countResult = await db.query(countQuery, queryParams);
-    const total = parseInt(countResult.rows[0].total, 10);
-
-    // Add pagination
-    query += ` ORDER BY created_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
-    queryParams.push(limit, offset);
-
-    const vehicles = await db.query(query, queryParams);
+    const [vehicles, total] = await Promise.all([
+      Vehicle.find(query)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Vehicle.countDocuments(query)
+    ]);
 
     // Log action
-    await logAction(req.user.id, 'vehicle_list_view', 'Viewed vehicle list');
+    await Log.create({
+      user: req.user.id,
+      action: 'vehicle_list_view',
+      details: 'Viewed vehicle list'
+    });
 
     res.json({
-      data: vehicles.rows,
+      data: vehicles,
       pagination: {
         total,
         page: parseInt(page, 10),
