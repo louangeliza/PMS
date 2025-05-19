@@ -1,0 +1,48 @@
+// src/middleware/auth.js
+const jwt = require('jsonwebtoken');
+const { jwt: jwtConfig } = require('../config/jwt');
+
+const authenticate = (req, res, next) => {
+  const authHeader = req.header('Authorization');
+  if (!authHeader) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ error: 'Invalid token format' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, jwtConfig.secret);
+    if (!decoded.id) {
+      throw new Error('Invalid token payload');
+    }
+    req.user = decoded;
+    next();
+  } catch (err) {
+    const errorMap = {
+      'TokenExpiredError': 'Token expired',
+      'JsonWebTokenError': 'Invalid token',
+      'NotBeforeError': 'Token not active'
+    };
+    const message = errorMap[err.name] || 'Authentication failed';
+    res.status(401).json({ error: message });
+  }
+};
+
+const authorizeRoles = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ 
+        error: `Required roles: ${roles.join(', ')}` 
+      });
+    }
+    next();
+  };
+};
+
+module.exports = { authenticate, authorizeRoles };
