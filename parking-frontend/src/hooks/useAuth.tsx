@@ -1,100 +1,79 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { login as authLogin, register as authRegister, getProfile } from '../services/authService';
-import { setToken, getToken, removeToken } from '../utils/auth';
-import { useNavigate } from 'react-router-dom';
+// src/hooks/useAuth.tsx
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { login, register, getProfile } from '../services/authService';
+import { User } from '../types';
+import { setToken, getToken, clearToken } from '../utils/auth';
 
-// Define a proper user type instead of using 'any'
-type User = {
-  id: string;
-  name: string;
-  email: string;
-  role?: string;
-};
-
-type AuthContextType = {
+interface AuthContextType {
   user: User | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, role?: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ token: string; user: User }>;
+  register: (data: { name: string; email: string; password: string; role?: string }) => Promise<void>;
   logout: () => void;
-  isAuthenticated: boolean;
-};
+  loading: boolean;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      const token = getToken();
-      if (token) {
-        try {
-          const userData = await getProfile();
-          setUser(userData);
-        } catch (error) {
-          removeToken();
-          console.error('Failed to fetch profile:', error);
+    const fetchUser = async () => {
+      try {
+        const token = getToken();
+        if (token) {
+          const profile = await getProfile();
+          setUser(profile);
         }
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+        clearToken();
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    initializeAuth();
+    fetchUser();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const loginHandler = async (email: string, password: string) => {
     try {
-      const { token } = await authLogin({ email, password });
-      setToken(token);
-      const userData = await getProfile();
-      setUser(userData);
+      const response = await login({ email, password });
+      setToken(response.token);
+      setUser(response.user);
+      return response;
     } catch (error) {
-      console.error('Login failed:', error);
       throw error;
     }
   };
 
-  const register = async (name: string, email: string, password: string, role?: string) => {
+  const registerHandler = async (data: { name: string; email: string; password: string; role?: string }) => {
     try {
-      const { token } = await authRegister({ name, email, password, role });
-      setToken(token);
-      const userData = await getProfile();
-      setUser(userData);
+      const response = await register(data);
+      setToken(response.token);
+      setUser(response.user);
     } catch (error) {
-      console.error('Registration failed:', error);
       throw error;
     }
   };
 
-  const logout = () => {
-    removeToken();
+  const logoutHandler = () => {
+    clearToken();
     setUser(null);
-    navigate('/login');
-  };
-
-  const value = {
-    user,
-    loading,
-    login,
-    register,
-    logout,
-    isAuthenticated: !!user,
   };
 
   return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
+    <AuthContext.Provider value={{ user, login: loginHandler, register: registerHandler, logout: logoutHandler, loading }}>
+      {children}
     </AuthContext.Provider>
   );
-}
+};
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};

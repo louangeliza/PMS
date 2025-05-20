@@ -1,27 +1,15 @@
 // src/components/dashboard/VehicleList.tsx
-import { Link } from 'react-router-dom';
-import { Vehicle, VehicleStatus } from '../../types';
-import StatusBadge from '../common/StatusBadge';
-import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
-import Pagination from '../common/Pagination';
 import React from 'react';
-
-// Helper function to map size to status
-const getStatusForSize = (size: Vehicle['size']): VehicleStatus => {
-  switch (size) {
-    case 'small': return 'available';
-    case 'medium': return 'pending';
-    case 'large': return 'rejected';
-    default: return 'available';
-  }
-};
+import { Vehicle } from '../../types';
 
 interface VehicleListProps {
   vehicles: Vehicle[];
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
 }
 
 const VehicleList: React.FC<VehicleListProps> = ({
@@ -30,70 +18,84 @@ const VehicleList: React.FC<VehicleListProps> = ({
   totalPages,
   onPageChange,
   onDelete,
+  searchQuery,
+  onSearchChange,
 }) => {
+  const handlePageChange = (page: number) => {
+    onPageChange(page);
+  };
+
+  const handleDeleteClick = async (id: string) => {
+    try {
+      await onDelete(id);
+    } catch (error) {
+      console.error('Error deleting vehicle:', error);
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onSearchChange(e.target.value);
+  };
+
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Plate Number
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Type
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Size
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Color
-            </th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {vehicles.map((vehicle) => (
-            <tr key={vehicle.id}>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                {vehicle.plate_number}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {vehicle.vehicle_type}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <StatusBadge status={getStatusForSize(vehicle.size)}>
-                  {vehicle.size}
-                </StatusBadge>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {vehicle.attributes?.color || vehicle.color || '-'}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex space-x-2">
-                <Link
-                  to={`/vehicles/edit/${vehicle.id}`}
-                  className="text-indigo-600 hover:text-indigo-900"
-                >
-                  <PencilIcon className="h-5 w-5" />
-                </Link>
-                <button
-                  onClick={() => onDelete(vehicle.id)}
-                  className="text-red-600 hover:text-red-800"
-                >
-                  <TrashIcon className="h-5 w-5" />
-                </button>
-              </td>
+    <div className="bg-white shadow rounded-lg p-6">
+      <h2 className="text-lg font-semibold text-gray-800 mb-4">Vehicles</h2>
+      <input
+        type="text"
+        value={searchQuery}
+        onChange={handleSearchChange}
+        placeholder="Search vehicles..."
+        className="mb-4 p-2 border rounded w-full"
+      />
+      {vehicles.length === 0 ? (
+        <p className="text-gray-500">No vehicles found</p>
+      ) : (
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="border p-2">ID</th>
+              <th className="border p-2">Details</th>
+              <th className="border p-2">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="mt-4">
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={onPageChange}
-        />
+          </thead>
+          <tbody>
+            {vehicles.map((vehicle) => (
+              <tr key={vehicle.id}>
+                <td className="border p-2">{vehicle.id}</td>
+                <td className="border p-2">
+                  {/* Add vehicle details, e.g., vehicle.licensePlate */}
+                </td>
+                <td className="border p-2">
+                  <button
+                    onClick={() => handleDeleteClick(vehicle.id)}
+                    className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div className="mt-4 flex justify-between">
+        <button
+          disabled={currentPage === 1}
+          onClick={() => handlePageChange(currentPage - 1)}
+          className="px-4 py-2 bg-gray-600 text-white rounded disabled:bg-gray-300"
+        >
+          Previous
+        </button>
+        <span>
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          disabled={currentPage === totalPages}
+          onClick={() => handlePageChange(currentPage + 1)}
+          className="px-4 py-2 bg-gray-600 text-white rounded disabled:bg-gray-300"
+        >
+          Next
+        </button>
       </div>
     </div>
   );

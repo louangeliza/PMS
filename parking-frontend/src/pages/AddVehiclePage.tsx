@@ -1,20 +1,15 @@
+// src/pages/AddVehiclePage.tsx
 import { useForm } from 'react-hook-form';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { useNavigate } from 'react-router-dom';
 import { createVehicle } from '../services/vehicleService';
-
-type FormData = {
-  plate_number: string;
-  vehicle_type: string;
-  size: 'small' | 'medium' | 'large';
-  color?: string;
-};
+import { CreateVehicleDTO } from '../types';
 
 export default function AddVehiclePage() {
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>();
+  const { register, handleSubmit, formState: { errors } } = useForm<CreateVehicleDTO>();
   const navigate = useNavigate();
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: CreateVehicleDTO) => {
     try {
       await createVehicle(data);
       navigate('/vehicles');

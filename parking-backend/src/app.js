@@ -5,7 +5,7 @@ const morgan = require('morgan');
 require('dotenv').config();
 const { connectDB } = require('./config/db');
 
-const authRoutes = require('./routes/authRoutes');
+
 const userRoutes = require('./routes/userRoutes');
 const vehicleRoutes = require('./routes/vehicleRoutes');
 const slotRoutes = require('./routes/slotRoutes');
@@ -23,7 +23,7 @@ app.use(morgan('dev'));
 app.use(express.json());
 
 // Routes
-app.use('/api/auth', authRoutes);
+
 app.use('/api/users', userRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/slots', slotRoutes);

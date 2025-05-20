@@ -1,23 +1,19 @@
 // src/pages/VehiclesPage.tsx
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import VehicleList from '../components/dashboard/VehicleList';
 import { useVehicles } from '../hooks/useVehicles';
-import React from 'react';
+
 export default function VehiclesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const { vehicles, totalPages, loading, error, deleteVehicle } = useVehicles({
     page: currentPage,
-    search: searchQuery
+    search: searchQuery,
   });
 
-  const handleDelete = async (id: number) => {
-    await deleteVehicle(id);
-  };
-
   return (
-    <DashboardLayout title="Vehicle Management" >
+    <DashboardLayout title="Vehicle Management">
       {loading && <div>Loading vehicles...</div>}
       {error && <div className="text-red-500">{error}</div>}
 
@@ -26,7 +22,7 @@ export default function VehiclesPage() {
         currentPage={currentPage}
         totalPages={totalPages}
         onPageChange={setCurrentPage}
-        onDelete={handleDelete}
+        onDelete={deleteVehicle} // deleteVehicle will be updated to use id: string
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
       />

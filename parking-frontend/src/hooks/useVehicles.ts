@@ -1,25 +1,28 @@
 // src/hooks/useVehicles.ts
 import { useState, useEffect } from 'react';
-import { getVehicles } from '../services/vehicleService';
+import { getVehicles, deleteVehicle as apiDeleteVehicle } from '../services/vehicleService';
 import { Vehicle } from '../types';
 
-interface UseVehiclesProps {
+interface UseVehiclesParams {
   page?: number;
-  limit?: number;
   search?: string;
 }
 
-export function useVehicles({ page = 1, limit = 10, search = '' }: UseVehiclesProps = {}) {
+export function useVehicles(params: UseVehiclesParams) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchVehicles = async () => {
       try {
         setLoading(true);
-        const response = await getVehicles({ page, limit, search });
+        const response = await getVehicles({
+          page: params.page,
+          limit: 10,
+          search: params.search,
+        });
         setVehicles(response.data);
         setTotalPages(response.pagination.totalPages);
         setError(null);
@@ -30,17 +33,18 @@ export function useVehicles({ page = 1, limit = 10, search = '' }: UseVehiclesPr
         setLoading(false);
       }
     };
-
     fetchVehicles();
-  }, [page, limit, search]);
+  }, [params.page, params.search]);
 
-  const deleteVehicle = async (id: number) => {
+  const deleteVehicle = async (id: string) => {
     try {
-      await deleteVehicle(id);
-      setVehicles(vehicles.filter(vehicle => vehicle.id !== id));
+      await apiDeleteVehicle(id); // id is string, matches vehicleService.ts
+      setVehicles((prev) => prev.filter((vehicle) => vehicle.id !== id));
+      setError(null);
     } catch (err) {
       setError('Failed to delete vehicle');
       console.error('Error deleting vehicle:', err);
+      throw err;
     }
   };
 

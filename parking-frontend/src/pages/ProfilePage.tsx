@@ -1,14 +1,14 @@
 // src/pages/ProfilePage.tsx
+import React from 'react';
 import { useForm } from 'react-hook-form';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { useAuth } from '../hooks/useAuth';
-import React from 'react';
-// Define the form data type to match your User type
+import { toast } from 'react-hot-toast';
+import { updateProfile } from '../services/authService'; // Assume this service exists or create it
+
 type FormData = {
   name: string;
   email: string;
-  phone?: string; // Optional phone field
-  role?: string;  // Optional role field
 };
 
 export default function ProfilePage() {
@@ -17,49 +17,36 @@ export default function ProfilePage() {
     defaultValues: {
       name: user?.name || '',
       email: user?.email || '',
-      // No need to initialize phone/role if not in your User type
-    }
+    },
   });
 
   const onSubmit = async (data: FormData) => {
     try {
-      console.log('Updating profile with:', data);
-      // Add your profile update API call here
-      // Example: await updateProfile(data);
+      await updateProfile(data); // Assume updateProfile is defined in authService.ts
+      toast.success('Profile updated successfully');
     } catch (error) {
-      console.error('Profile update failed:', error);
+      toast.error('Failed to update profile');
+      console.error('Profile update error:', error);
     }
   };
 
-  if (loading) {
-    return (
-      <DashboardLayout title="My Profile">
-        <div>Loading profile...</div>
-      </DashboardLayout>
-    );
-  }
+  if (loading) return <DashboardLayout title="Profile"><div>Loading...</div></DashboardLayout>;
+  if (!user) return <DashboardLayout title="Profile"><div>User not found</div></DashboardLayout>;
 
   return (
-    <DashboardLayout title="My Profile">
+    <DashboardLayout title="Profile">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-md mx-auto">
-        {/* Name Field */}
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-            Full Name
+            Name
           </label>
           <input
             {...register('name', { required: 'Name is required' })}
             id="name"
-            type="text"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            disabled={loading}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
           />
-          {errors.name && (
-            <p className="mt-2 text-sm text-red-600">{errors.name.message}</p>
-          )}
+          {errors.name && <p className="mt-2 text-sm text-red-600">{errors.name.message}</p>}
         </div>
-
-        {/* Email Field */}
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700">
             Email
@@ -74,53 +61,16 @@ export default function ProfilePage() {
             })}
             id="email"
             type="email"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            disabled={loading}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
           />
-          {errors.email && (
-            <p className="mt-2 text-sm text-red-600">{errors.email.message}</p>
-          )}
+          {errors.email && <p className="mt-2 text-sm text-red-600">{errors.email.message}</p>}
         </div>
-
-        {/* Phone Field - Only show if your User type includes phone */}
-        {'phone' in (user || {}) && (
-          <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-              Phone Number
-            </label>
-            <input
-              {...register('phone')}
-              id="phone"
-              type="tel"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              disabled={loading}
-            />
-          </div>
-        )}
-
-        {/* Role Field - Only show if your User type includes role */}
-        {user?.role && (
-          <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-              Role
-            </label>
-            <input
-              {...register('role')}
-              id="role"
-              type="text"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-gray-100"
-              disabled
-            />
-          </div>
-        )}
-
-        <div className="flex justify-end">
+        <div className="flex justify-end space-x-3">
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-            disabled={loading}
+            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
           >
-            {loading ? 'Updating...' : 'Update Profile'}
+            Update Profile
           </button>
         </div>
       </form>

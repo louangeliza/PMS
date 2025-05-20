@@ -13,119 +13,50 @@ const validateEmail = (email) => {
   return cleanEmail;
 };
 
+const bcrypt = require('bcryptjs');
+const User = require('../models/User');
+
 const register = async (req, res) => {
+  const { name, email, password } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Name, email and password are required' });
+  }
+
   try {
-    const { name, email, password } = req.body;
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.status(400).json({ error: 'User already exists' });
 
-    // Validate inputs
-    if (!name || !email || !password) {
-      return res.status(400).json({ 
-        error: 'All fields are required',
-        code: 'MISSING_FIELDS' 
-      });
-    }
-
-    const cleanEmail = email.toLowerCase().trim();
-    const cleanPassword = password.trim();
-
-    // Additional validation
-    if (cleanPassword.length < 6) {
-      return res.status(400).json({
-        error: 'Password must be at least 6 characters',
-        code: 'PASSWORD_TOO_SHORT'
-      });
-    }
-
-    // Check for existing user
-    if (await User.findOne({ email: cleanEmail })) {
-      return res.status(400).json({
-        error: 'Email already registered',
-        code: 'EMAIL_EXISTS'
-      });
-    }
-
-    // Generate salt and hash
     const salt = await bcrypt.genSalt(10);
-    const hash = await bcrypt.hash(cleanPassword, salt);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user with explicit password hashing
-    const user = await User.create({
-      name,
-      email: cleanEmail,
-      password: hash, // Use the pre-hashed value
-      role: 'user'
-    });
+    const user = new User({ name, email, password: hashedPassword });
+    await user.save();
 
-    // Return response without sensitive data
-    res.status(201).json({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      createdAt: user.createdAt
-    });
-
+    res.status(201).json({ message: 'User registered successfully' });
   } catch (err) {
-    console.error('Registration error:', err);
-    res.status(500).json({
-      error: 'Registration failed',
-      code: 'REGISTRATION_ERROR',
-      details: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
+    res.status(500).json({ error: 'Server error' });
   }
 };
 
+module.exports = { register };
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const { jwt: jwtConfig } = require('../config/jwt');
+
 const login = async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
   try {
-    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ error: 'Invalid credentials' });
 
-    if (!email || !password) {
-      return res.status(400).json({
-        error: 'Email and password are required',
-        code: 'MISSING_FIELDS'
-      });
-    }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
-    const cleanEmail = email.toLowerCase().trim();
-    const cleanPassword = password.trim();
-
-    // Find user with case-insensitive email
-    const user = await User.findOne({ 
-      email: { $regex: new RegExp(`^${cleanEmail}$`, 'i') }
-    });
-
-    if (!user) {
-      console.log(`Login failed: User not found for ${cleanEmail}`);
-      return res.status(400).json({
-        error: 'Invalid credentials',
-        code: 'INVALID_CREDENTIALS'
-      });
-    }
-
-    // Debug output
-    console.log('Stored hash:', user.password);
-    console.log('Input password:', cleanPassword);
-    
-    // Compare passwords
-    const isMatch = await bcrypt.compare(cleanPassword, user.password);
-    console.log('Password match:', isMatch);
-
-    if (!isMatch) {
-      // Create a test hash to verify bcrypt is working
-      const testHash = await bcrypt.hash('test123', 10);
-      const testMatch = await bcrypt.compare('test123', testHash);
-      console.log('Test hash comparison:', testMatch);
-
-      return res.status(400).json({
-        error: 'Invalid credentials',
-        code: 'INVALID_CREDENTIALS',
-        debug: process.env.NODE_ENV === 'development' ? {
-          storedHash: user.password,
-          testComparison: testMatch
-        } : undefined
-      });
-    }
-
-    // Generate JWT token
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       jwtConfig.secret,
@@ -133,16 +64,12 @@ const login = async (req, res) => {
     );
 
     res.json({ token });
-
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({
-      error: 'Login failed',
-      code: 'LOGIN_ERROR',
-      details: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
+    res.status(500).json({ error: 'Server error' });
   }
 };
+
+module.exports = { login };
 const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)

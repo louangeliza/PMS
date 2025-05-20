@@ -5,7 +5,8 @@ export interface BaseDocument {
   updated_at: string;
 }
 
-export type VehicleStatus = 'available' | 'pending' | 'rejected';
+export type UserRole = 'admin' | 'client';
+export type VehicleStatus = 'pending' | 'approved' | 'rejected';
 
 export interface Vehicle extends BaseDocument {
   plate_number: string;
@@ -14,9 +15,18 @@ export interface Vehicle extends BaseDocument {
   owner_id: string;
   vehicle_type: string;
   size: 'small' | 'medium' | 'large';
+  status: VehicleStatus;
   attributes?: {
     color?: string;
   };
+}
+
+export interface CreateVehicleDTO {
+  plate_number: string;
+  vehicle_type: string;
+  size: 'small' | 'medium' | 'large';
+  color?: string;
+  model?: string;
 }
 
 export interface Request extends BaseDocument {
@@ -31,7 +41,58 @@ export interface Request extends BaseDocument {
 export interface User extends BaseDocument {
   name: string;
   email: string;
-  role: 'user' | 'admin';
+  role: UserRole;
+}
+
+export interface Parking extends BaseDocument {
+  code: string;
+  name: string;
+  total_spaces: number;
+  available_spaces: number;
+  location: string;
+  charge_per_hour: number;
+}
+
+export interface ParkingEntry extends BaseDocument {
+  id: string;
+  plate_number: string;
+  parking_code: string;
+  entry_date_time: string;
+  exit_date_time: string | null;
+  charged_amount: number;
+  status: 'active' | 'completed';
+}
+
+export interface ParkingTicket extends BaseDocument {
+  entry_id: string;
+  ticket_number: string;
+  entry_date_time: string;
+  plate_number: string;
+  parking_name: string;
+}
+
+export interface ParkingBill extends BaseDocument {
+  entry_id: string;
+  ticket_number: string;
+  entry_date_time: string;
+  exit_date_time: string;
+  plate_number: string;
+  parking_name: string;
+  duration_hours: number;
+  total_amount: number;
+}
+
+export interface CreateParkingDTO {
+  code: string;
+  name: string;
+  total_spaces: number;
+  location: string;
+  charge_per_hour: number;
+}
+
+export interface CreateParkingEntryDTO {
+  plate_number: string;
+  parking_code: string;
 }
 
 export interface PaginatedResponse<T> {

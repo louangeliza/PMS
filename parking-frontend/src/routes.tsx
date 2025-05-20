@@ -1,101 +1,144 @@
+// src/routes.tsx
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import LoadingSpinner from './components/ui/LoadingSpinner';
+import RoleProtectedRoute from './components/RoleProtectedRoute';
 
-// Properly typed lazy imports with default exports
-const LoginPage = lazy(() => import('./pages/LoginPage').then(module => ({ default: module.default })));
-const RegisterPage = lazy(() => import('./pages/RegisterPage').then(module => ({ default: module.default })));
-const DashboardPage = lazy(() => import('./pages/DashboardPage').then(module => ({ default: module.default })));
-const VehiclesPage = lazy(() => import('./pages/VehiclesPage').then(module => ({ default: module.default })));
-const AddVehiclePage = lazy(() => import('./pages/AddVehiclePage').then(module => ({ default: module.default })));
-const EditVehiclePage = lazy(() => import('./pages/EditVehiclePage').then(module => ({ default: module.default })));
-const RequestsPage = lazy(() => import('./pages/RequestsPage').then(module => ({ default: module.default })));
-const NewRequestPage = lazy(() => import('./pages/NewRequestPage').then(module => ({ default: module.default })));
-const ProfilePage = lazy(() => import('./pages/ProfilePage').then(module => ({ default: module.default })));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(module => ({ default: module.default })));
+// Lazy-loaded components
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const AddVehiclePage = lazy(() => import('./pages/AddVehiclePage'));
+const EditVehiclePage = lazy(() => import('./pages/EditVehiclePage'));
+const NewRequestPage = lazy(() => import('./pages/NewRequestPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'));
+const AddParkingPage = lazy(() => import('./pages/admin/AddParkingPage'));
+const NewEntryPage = lazy(() => import('./pages/admin/NewEntryPage'));
+const ActiveEntriesPage = lazy(() => import('./pages/admin/ActiveEntriesPage'));
+const CompleteEntryPage = lazy(() => import('./pages/admin/CompleteEntryPage'));
 
-// Define proper types for children
-interface RouteProps {
-  children: React.ReactElement;
-}
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading } = useAuth();
 
-function PrivateRoute({ children }: RouteProps) {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
-}
-
-function PublicRoute({ children }: RouteProps) {
-  const { isAuthenticated } = useAuth();
-  return !isAuthenticated ? children : <Navigate to="/dashboard" replace />;
-}
-
-// Define props for LoadingSpinner if needed
-interface LoadingSpinnerProps {
-  fullScreen?: boolean;
-}
+  if (loading) return <LoadingSpinner />;
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+};
 
 export default function AppRoutes() {
+  const { user } = useAuth();
+
   return (
-    <Suspense fallback={<LoadingSpinner fullScreen={true} />}>
+    <Suspense fallback={<LoadingSpinner />}>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         
-        <Route path="/login" element={
-          <PublicRoute>
-            <LoginPage />
-          </PublicRoute>
-        } />
-        
-        <Route path="/register" element={
-          <PublicRoute>
-            <RegisterPage />
-          </PublicRoute>
-        } />
-        
-        <Route path="/dashboard" element={
-          <PrivateRoute>
-            <DashboardPage />
-          </PrivateRoute>
-        } />
-        
-        <Route path="/vehicles" element={
-          <PrivateRoute>
-            <VehiclesPage />
-          </PrivateRoute>
-        } />
-        
-        <Route path="/vehicles/add" element={
-          <PrivateRoute>
-            <AddVehiclePage />
-          </PrivateRoute>
-        } />
-        
-        <Route path="/vehicles/edit/:id" element={
-          <PrivateRoute>
-            <EditVehiclePage />
-          </PrivateRoute>
-        } />
-        
-        <Route path="/requests" element={
-          <PrivateRoute>
-            <RequestsPage />
-          </PrivateRoute>
-        } />
-        
-        <Route path="/requests/new" element={
-          <PrivateRoute>
-            <NewRequestPage />
-          </PrivateRoute>
-        } />
-        
-        <Route path="/profile" element={
-          <PrivateRoute>
-            <ProfilePage />
-          </PrivateRoute>
-        } />
-        
-        <Route path="*" element={<NotFoundPage />} />
+        {/* Admin Routes */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <RoleProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboardPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/parking/new"
+          element={
+            <RoleProtectedRoute allowedRoles={['admin']}>
+              <AddParkingPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/entries/new"
+          element={
+            <RoleProtectedRoute allowedRoles={['admin']}>
+              <NewEntryPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/entries/active"
+          element={
+            <RoleProtectedRoute allowedRoles={['admin']}>
+              <ActiveEntriesPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/entries/:id/complete"
+          element={
+            <RoleProtectedRoute allowedRoles={['admin']}>
+              <CompleteEntryPage />
+            </RoleProtectedRoute>
+          }
+        />
+
+        {/* Client Routes */}
+        <Route
+          path="/dashboard"
+          element={
+            <RoleProtectedRoute allowedRoles={['client']}>
+              <DashboardPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/vehicles/add"
+          element={
+            <ProtectedRoute>
+              <AddVehiclePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vehicles/:id/edit"
+          element={
+            <ProtectedRoute>
+              <EditVehiclePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/requests/new"
+          element={
+            <ProtectedRoute>
+              <NewRequestPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Default Routes */}
+        <Route 
+          path="/" 
+          element={
+            <Navigate 
+              to={user?.role === 'admin' ? '/admin/dashboard' : '/dashboard'} 
+              replace 
+            />
+          } 
+        />
+        <Route 
+          path="*" 
+          element={
+            <Navigate 
+              to={user?.role === 'admin' ? '/admin/dashboard' : '/dashboard'} 
+              replace 
+            />
+          } 
+        />
       </Routes>
     </Suspense>
   );

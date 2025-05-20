@@ -1,12 +1,15 @@
+// src/pages/RegisterPage.tsx
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { AuthLayout } from '../components/layout/AuthLayout';
-import axios from 'axios';
+import { axiosInstance } from '../services/api';
+import axios, { AxiosError } from 'axios'; // Import axios and AxiosError
 import { toast } from 'react-hot-toast';
 
 type FormData = {
-  name: string;
+  firstname: string;
+  lastname: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -14,28 +17,38 @@ type FormData = {
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const { 
-    register, 
-    handleSubmit, 
+  const {
+    register,
+    handleSubmit,
     watch,
-    formState: { errors, isSubmitting } 
+    formState: { errors, isSubmitting },
   } = useForm<FormData>();
 
   const password = watch('password');
 
   const onSubmit = async (data: FormData) => {
     try {
-      // Remove confirmPassword before sending to API
       const { confirmPassword, ...userData } = data;
-      
-      const response = await axios.post('/api/auth/register', userData);
-      
+      const response = await axiosInstance.post('/users/register', userData);
       toast.success('Registration successful!');
       navigate('/login');
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.error || 'Registration failed');
+        const axiosError = error as AxiosError<{ error?: string }>; // Type the error
+        console.error('Axios error during registration:', {
+          message: axiosError.message,
+          response: axiosError.response?.data,
+          status: axiosError.response?.status,
+          headers: axiosError.response?.headers,
+          request: {
+            url: axiosError.config?.url,
+            method: axiosError.config?.method,
+            data: axiosError.config?.data,
+          },
+        });
+        toast.error(axiosError.response?.data?.error || 'Registration failed');
       } else {
+        console.error('Unexpected error during registration:', error);
         toast.error('An unexpected error occurred');
       }
     }
@@ -46,25 +59,42 @@ export default function RegisterPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-            Full Name
+            First Name
           </label>
           <input
-            {...register('name', { 
-              required: 'Name is required',
+            {...register('firstname', {
+              required: 'FirstName is required',
               minLength: {
                 value: 2,
-                message: 'Name must be at least 2 characters'
-              }
+                message: 'FirstName must be at least 2 characters',
+              },
             })}
-            id="name"
+            id="firstname"
             type="text"
             className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary ${
-              errors.name ? 'border-red-500' : ''
+              errors.firstname ? 'border-red-500' : ''
             }`}
           />
-          {errors.name && (
-            <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
-          )}
+          {errors.firstname && <p className="mt-1 text-sm text-red-600">{errors.firstname.message}</p>}
+        </div>   <div>
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+            Last Name
+          </label>
+          <input
+            {...register('lastname', {
+              required: 'LastName is required',
+              minLength: {
+                value: 2,
+                message: 'LastName must be at least 2 characters',
+              },
+            })}
+            id="lastname"
+            type="text"
+            className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary ${
+              errors.lastname ? 'border-red-500' : ''
+            }`}
+          />
+          {errors.lastname && <p className="mt-1 text-sm text-red-600">{errors.lastname.message}</p>}
         </div>
 
         <div>
@@ -72,12 +102,12 @@ export default function RegisterPage() {
             Email
           </label>
           <input
-            {...register('email', { 
+            {...register('email', {
               required: 'Email is required',
               pattern: {
                 value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                message: 'Invalid email address'
-              }
+                message: 'Invalid email address',
+              },
             })}
             id="email"
             type="email"
@@ -85,9 +115,7 @@ export default function RegisterPage() {
               errors.email ? 'border-red-500' : ''
             }`}
           />
-          {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-          )}
+          {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
         </div>
 
         <div>
@@ -95,19 +123,16 @@ export default function RegisterPage() {
             Password
           </label>
           <input
-            {...register('password', { 
+            {...register('password', {
               required: 'Password is required',
               minLength: {
                 value: 8,
-                message: 'Password must be at least 8 characters'
+                message: 'Password must be at least 8 characters',
               },
-              validate: (value) => {
-                return (
-                  [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].every((pattern) => 
-                    pattern.test(value)
-                  ) || 'Password must include lower, upper, number, and special chars'
-                );
-              }
+              validate: (value) =>
+                [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].every((pattern) =>
+                  pattern.test(value)
+                ) || 'Password must include lower, upper, number, and special chars',
             })}
             id="password"
             type="password"
@@ -125,10 +150,9 @@ export default function RegisterPage() {
             Confirm Password
           </label>
           <input
-            {...register('confirmPassword', { 
+            {...register('confirmPassword', {
               required: 'Please confirm your password',
-              validate: (value) => 
-                value === password || 'Passwords do not match'
+              validate: (value) => value === password || 'Passwords do not match',
             })}
             id="confirmPassword"
             type="password"
@@ -157,10 +181,7 @@ export default function RegisterPage() {
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-600">
           Already have an account?{' '}
-          <Link 
-            to="/login" 
-            className="font-medium text-primary hover:text-primary-dark"
-          >
+          <Link to="/login" className="font-medium text-primary hover:text-primary-dark">
             Sign in
           </Link>
         </p>
