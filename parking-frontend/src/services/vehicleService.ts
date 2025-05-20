@@ -1,6 +1,6 @@
 // src/services/vehicleService.ts
-import api from './api';
-import { Vehicle } from '../types';
+import { axiosInstance } from './api';
+import { Vehicle, CreateVehicleDTO } from '../types';
 
 interface PaginatedResponse {
   data: Vehicle[];
@@ -11,12 +11,17 @@ interface PaginatedResponse {
   };
 }
 
+export const createVehicle = async (vehicle: CreateVehicleDTO): Promise<Vehicle> => {
+  const response = await axiosInstance.post<Vehicle>('/vehicles', vehicle);
+  return response.data;
+};
+
 export const getVehicles = async (params?: {
   page?: number;
   limit?: number;
   search?: string;
 }): Promise<PaginatedResponse> => {
-  const response = await api.get('/vehicles', {
+  const response = await axiosInstance.get<PaginatedResponse>('/vehicles', {
     params: {
       page: params?.page || 1,
       limit: params?.limit || 10,
@@ -26,25 +31,16 @@ export const getVehicles = async (params?: {
   return response.data;
 };
 
-
-
-export const createVehicle = async (vehicleData: Omit<Vehicle, 'id'>): Promise<Vehicle> => {
-  const response = await api.post('/vehicles', vehicleData);
+export const getVehicle = async (id: string): Promise<Vehicle> => {
+  const response = await axiosInstance.get<Vehicle>(`/vehicles/${id}`);
   return response.data;
 };
 
-
-
-export const deleteVehicle = async (id: number): Promise<void> => {
-  await api.delete(`/vehicles/${id}`);
-};
-// src/services/vehicleService.ts
-export const getVehicle = async (id: string): Promise<Vehicle> => {
-  const response = await api.get(`/vehicles/${id}`);
-  return response.data; // Assuming your API returns the vehicle directly in data
+export const updateVehicle = async (id: string, vehicleData: Partial<CreateVehicleDTO>): Promise<Vehicle> => {
+  const response = await axiosInstance.put<Vehicle>(`/vehicles/${id}`, vehicleData);
+  return response.data;
 };
 
-export const updateVehicle = async (id: string, vehicleData: Partial<Vehicle>): Promise<Vehicle> => {
-  const response = await api.put(`/vehicles/${id}`, vehicleData);
-  return response.data; // Assuming your API returns the updated vehicle directly in data
+export const deleteVehicle = async (id: string): Promise<void> => {
+  await axiosInstance.delete(`/vehicles/${id}`);
 };

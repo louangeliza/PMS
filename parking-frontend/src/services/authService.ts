@@ -1,5 +1,6 @@
 // src/services/authService.ts
-import api from './api';
+import { axiosInstance } from './api';
+import { User } from '../types'; // Import User type
 
 interface LoginCredentials {
   email: string;
@@ -13,25 +14,22 @@ interface RegisterData {
   role?: string;
 }
 
-interface UserProfile {
-  id: string;
-  name: string;
-  email: string;
-  role?: string;
-  created_at?: string;
-}
-
 export const login = async (credentials: LoginCredentials) => {
-  const response = await api.post('/auth/login', credentials);
+  const response = await axiosInstance.post('/users/login', credentials);
   return response.data;
 };
 
 export const register = async (userData: RegisterData) => {
-  const response = await api.post('/auth/register', userData);
+  const response = await axiosInstance.post('/users/register', userData);
   return response.data;
 };
 
-export const getProfile = async (): Promise<UserProfile> => {
-  const response = await api.get('/auth/profile');
+export const getProfile = async (): Promise<User> => {
+  const response = await axiosInstance.get('/users/profile');
+  return response.data;
+};
+
+export const updateProfile = async (data: { name: string; email: string }): Promise<User> => {
+  const response = await axiosInstance.put('/users/profile', data);
   return response.data;
 };

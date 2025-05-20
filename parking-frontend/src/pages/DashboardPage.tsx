@@ -1,3 +1,4 @@
+// src/pages/DashboardPage.tsx
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -16,10 +17,10 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchVehicles = async () => {
       try {
-        const response = await getVehicles({ 
-          page: currentPage, 
-          limit: 10, 
-          search: searchQuery 
+        const response = await getVehicles({
+          page: currentPage,
+          limit: 10,
+          search: searchQuery,
         });
         setVehicles(response.data);
         setTotalPages(response.pagination.totalPages);
@@ -31,10 +32,10 @@ export default function DashboardPage() {
     fetchVehicles();
   }, [currentPage, searchQuery]);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       await deleteVehicle(id);
-      setVehicles(vehicles.filter(vehicle => vehicle.id !== id));
+      setVehicles(vehicles.filter((vehicle) => vehicle.id !== id));
     } catch (error) {
       console.error('Failed to delete vehicle:', error);
     }
@@ -54,7 +55,6 @@ export default function DashboardPage() {
             onSearchChange={setSearchQuery}
           />
         </div>
-
         <div className="space-y-6">
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h2>
@@ -73,7 +73,6 @@ export default function DashboardPage() {
               </Link>
             </div>
           </div>
-
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Recent Requests</h2>
             <p className="text-gray-500 text-sm">No recent requests</p>

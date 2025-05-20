@@ -1,9 +1,10 @@
+// src/pages/EditVehiclePage.tsx
 import { useForm } from 'react-hook-form';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useVehicle } from '../hooks/useVehicle';
-import { updateVehicle } from '../services/vehicleService';
 import React from 'react';
+
 type FormData = {
   plate_number: string;
   vehicle_type: string;
@@ -13,8 +14,15 @@ type FormData = {
 
 export default function EditVehiclePage() {
   const { id } = useParams<{ id: string }>();
-  const { vehicle, loading, error } = useVehicle(id);
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>();
+  const { vehicle, loading, error, updateVehicle } = useVehicle(id); // Added updateVehicle
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+    defaultValues: {
+      plate_number: vehicle?.plate_number || '',
+      vehicle_type: vehicle?.vehicle_type || '',
+      size: vehicle?.size || 'small',
+      color: vehicle?.color || '',
+    },
+  });
   const navigate = useNavigate();
 
   if (loading) return <DashboardLayout title="Edit Vehicle"><div>Loading...</div></DashboardLayout>;
@@ -23,7 +31,7 @@ export default function EditVehiclePage() {
 
   const onSubmit = async (data: FormData) => {
     try {
-      await updateVehicle(id!, data);
+      await updateVehicle(id!, data); // Use updateVehicle from useVehicle hook
       navigate('/vehicles');
     } catch (err) {
       console.error('Failed to update vehicle:', err);
@@ -33,24 +41,60 @@ export default function EditVehiclePage() {
   return (
     <DashboardLayout title="Edit Vehicle">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-md mx-auto">
-        {/* Form fields with default values */}
         <div>
           <label htmlFor="plate_number" className="block text-sm font-medium text-gray-700">
             Plate Number
           </label>
           <input
-            {...register('plate_number', { 
-              required: 'Plate number is required',
-              value: vehicle.plate_number
-            })}
+            {...register('plate_number', { required: 'Plate number is required' })}
             id="plate_number"
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
           />
           {errors.plate_number && <p className="mt-2 text-sm text-red-600">{errors.plate_number.message}</p>}
         </div>
-
-        {/* Other fields... */}
-
+        <div>
+          <label htmlFor="vehicle_type" className="block text-sm font-medium text-gray-700">
+            Vehicle Type
+          </label>
+          <select
+            {...register('vehicle_type', { required: 'Vehicle type is required' })}
+            id="vehicle_type"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+          >
+            <option value="">Select type</option>
+            <option value="sedan">Sedan</option>
+            <option value="suv">SUV</option>
+            <option value="truck">Truck</option>
+            <option value="motorcycle">Motorcycle</option>
+          </select>
+          {errors.vehicle_type && <p className="mt-2 text-sm text-red-600">{errors.vehicle_type.message}</p>}
+        </div>
+        <div>
+          <label htmlFor="size" className="block text-sm font-medium text-gray-700">
+            Size
+          </label>
+          <select
+            {...register('size', { required: 'Size is required' })}
+            id="size"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+          >
+            <option value="">Select size</option>
+            <option value="small">Small</option>
+            <option value="medium">Medium</option>
+            <option value="large">Large</option>
+          </select>
+          {errors.size && <p className="mt-2 text-sm text-red-600">{errors.size.message}</p>}
+        </div>
+        <div>
+          <label htmlFor="color" className="block text-sm font-medium text-gray-700">
+            Color (Optional)
+          </label>
+          <input
+            {...register('color')}
+            id="color"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+          />
+        </div>
         <div className="flex justify-end space-x-3">
           <button
             type="button"

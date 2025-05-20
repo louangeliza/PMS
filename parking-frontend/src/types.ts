@@ -18,6 +18,13 @@ export interface Vehicle extends BaseDocument {
     color?: string;
   };
 }
+// src/types.ts
+export interface CreateVehicleDTO {
+  plate_number: string;
+  vehicle_type: string;
+  size: 'small' | 'medium' | 'large';
+  color?: string;
+}
 
 export interface Request extends BaseDocument {
   vehicle_id: string;

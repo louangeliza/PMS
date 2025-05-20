@@ -1,27 +1,37 @@
-import { useForm } from 'react-hook-form'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
-import { toast } from 'react-hot-toast'
-import React from 'react'
+// src/components/auth/LoginForm.tsx
+import React from 'react';
+import { useForm } from 'react-hook-form';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import { toast } from 'react-hot-toast';
+
 type LoginFormData = {
-  email: string
-  password: string
-}
+  email: string;
+  password: string;
+};
 
 export default function LoginForm() {
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>()
-  const { login } = useAuth()
-  const navigate = useNavigate()
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormData>();
 
-  const onSubmit = async (data: LoginFormData) => {
-    try {
-      await login(data.email, data.password);
-      toast.success('Logged in successfully');
-      navigate('/dashboard');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Invalid credentials');
-    }
-  };
+const onSubmit = async (data: LoginFormData) => {
+  try {
+    console.log('Attempting login with:', data);
+    await login(data.email, data.password);
+    console.log('Login successful, navigating to /dashboard');
+    toast.success('Logged in successfully');
+    navigate('/dashboard', { replace: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Invalid credentials';
+    console.error('Login failed:', errorMessage);
+    toast.error(errorMessage);
+  }
+};
 
   return (
     <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
@@ -32,10 +42,18 @@ export default function LoginForm() {
           <input
             id="email"
             type="email"
-            {...register('email', { required: 'Email is required' })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+            {...register('email', {
+              required: 'Email is required',
+              pattern: {
+                value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                message: 'Invalid email address',
+              },
+            })}
+            className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary ${
+              errors.email ? 'border-red-500' : ''
+            }`}
           />
-          {errors.email && <p className="mt-1 text-sm text-danger">{errors.email.message}</p>}
+          {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
         </div>
 
         <div>
@@ -43,18 +61,29 @@ export default function LoginForm() {
           <input
             id="password"
             type="password"
-            {...register('password', { required: 'Password is required' })}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+            {...register('password', {
+              required: 'Password is required',
+              minLength: {
+                value: 8,
+                message: 'Password must be at least 8 characters',
+              },
+            })}
+            className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary ${
+              errors.password ? 'border-red-500' : ''
+            }`}
           />
-          {errors.password && <p className="mt-1 text-sm text-danger">{errors.password.message}</p>}
+          {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>}
         </div>
 
         <div>
           <button
             type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            disabled={isSubmitting}
+            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary ${
+              isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+            }`}
           >
-            Sign in
+            {isSubmitting ? 'Logging in...' : 'Sign in'}
           </button>
         </div>
       </form>
@@ -68,5 +97,5 @@ export default function LoginForm() {
         </p>
       </div>
     </div>
-  )
+  );
 }
