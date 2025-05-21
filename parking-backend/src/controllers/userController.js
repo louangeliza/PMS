@@ -2,13 +2,19 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { jwt: jwtConfig } = require('../config/jwt');
 const { logAction } = require('../services/logService');
-const User = require('../models/User');
+const { User } = require('../models/User');
+const { ParkingLot } = require('../models/User');
 
 // Register user
 const register = async (req, res) => {
-  const { name, email, password, role = 'user' } = req.body;
+  const { firstname, lastname, email, password, role = 'client' } = req.body;
 
   try {
+    // Validate required fields
+    if (!firstname || !lastname || !email || !password) {
+      return res.status(400).json({ error: 'All fields (firstname, lastname, email, password) are required' });
+    }
+
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ error: 'User already exists' });
@@ -18,23 +24,32 @@ const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = await User.create({
-      name,
+      firstname,
+      lastname,
       email,
       password: hashedPassword,
       role,
     });
 
-    await logAction(newUser._id, 'user_registration', `User ${email} registered`);
+    // Log the registration
+    try {
+      await logAction(newUser._id, 'user_registration', `User ${email} registered`);
+    } catch (logError) {
+      console.error('Failed to log registration:', logError);
+      // Continue even if logging fails
+    }
 
     res.status(201).json({
       id: newUser._id,
-      name: newUser.name,
+      firstname: newUser.firstname,
+      lastname: newUser.lastname,
       email: newUser.email,
       role: newUser.role,
-      created_at: newUser.created_at,
+      created_at: newUser.createdAt,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Registration error:', err);
+    res.status(500).json({ error: 'Failed to register user' });
   }
 };
 
@@ -60,7 +75,12 @@ const login = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
+      { 
+        _id: user._id,
+        id: user._id,  // Include both for compatibility
+        email: user.email, 
+        role: user.role 
+      },
       jwtConfig.secret,
       { expiresIn: jwtConfig.expiresIn }
     );
@@ -77,10 +97,21 @@ const login = async (req, res) => {
 // Get user profile
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('id name email role created_at');
-    res.json(user);
+    const user = await User.findById(req.user.id).select('_id firstname lastname email role createdAt');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({
+      id: user._id,
+      firstname: user.firstname,
+      lastname: user.lastname,
+      email: user.email,
+      role: user.role,
+      created_at: user.createdAt
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Profile error:', err);
+    res.status(500).json({ error: 'Failed to get profile' });
   }
 };
 
@@ -117,5 +148,43 @@ const updateProfile = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getProfile, updateProfile };
+const addParkingLot = async (req, res) => {
+  try {
+    const { code, name, spaces, location, feePerHour } = req.body;
+
+    // Validate required fields
+    if (!code || !name || spaces === undefined || !location || feePerHour === undefined) {
+      return res.status(400).json({ error: 'All parking lot details (code, name, spaces, location, feePerHour) are required' });
+    }
+
+    // Check if a parking lot with the same code already exists
+    const existingParkingLot = await ParkingLot.findOne({ code });
+    if (existingParkingLot) {
+      return res.status(400).json({ error: `Parking lot with code ${code} already exists` });
+    }
+
+    // Create a new parking lot instance
+    const newParkingLot = new ParkingLot({
+      code,
+      name,
+      spaces,
+      location,
+      feePerHour,
+    });
+
+    // Save the new parking lot to the database
+    await newParkingLot.save();
+
+    // Log the action (assuming logAction is available)
+    // You might want to log this action specifically for admin users
+    // await logAction(req.user.id, 'add_parking_lot', `Added parking lot with code ${code}`);
+
+    res.status(201).json(newParkingLot);
+  } catch (error) {
+    console.error('Error adding parking lot:', error);
+    res.status(500).json({ error: 'Server error: Could not add parking lot' });
+  }
+};
+
+module.exports = { register, login, getProfile, updateProfile, addParkingLot };
 

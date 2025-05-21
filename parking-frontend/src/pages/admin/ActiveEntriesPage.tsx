@@ -1,27 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getActiveEntries } from '../services/parkingService';
-import { ParkingEntry } from '../types';
+import { getActiveEntries, getParkings } from '../../services/parkingService';
+import { ParkingEntry, Parking } from '../../types';
 import { toast } from 'react-hot-toast';
 
 const ActiveEntriesPage: React.FC = () => {
   const navigate = useNavigate();
   const [entries, setEntries] = useState<ParkingEntry[]>([]);
+  const [parkings, setParkings] = useState<Map<string, Parking>>(new Map());
   const [loading, setLoading] = useState(true);
 
-  const fetchEntries = async () => {
+  const fetchData = async () => {
     try {
-      const data = await getActiveEntries();
-      setEntries(data);
+      const [entriesData, parkingsData] = await Promise.all([
+        getActiveEntries(),
+        getParkings(),
+      ]);
+      setEntries(entriesData);
+      const parkingMap = new Map<string, Parking>(
+        parkingsData.data.map((parking: Parking) => [parking.code, parking])
+      );
+      setParkings(parkingMap);
     } catch (error) {
-      toast.error('Failed to fetch active entries');
+      toast.error('Failed to fetch active entries or parking facilities');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchEntries();
+    fetchData();
   }, []);
 
   const handleCompleteEntry = (entryId: number) => {
@@ -67,9 +75,6 @@ const ActiveEntriesPage: React.FC = () => {
                   Vehicle Number
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Vehicle Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Entry Time
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -84,16 +89,13 @@ const ActiveEntriesPage: React.FC = () => {
                     {entry.id}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {entry.parking.name}
+                    {parkings.get(entry.parking_code)?.name || entry.parking_code}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {entry.vehicle_number}
+                    {entry.plate_number}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {entry.vehicle_type}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(entry.entry_time).toLocaleString()}
+                    {new Date(entry.entry_date_time).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     <button
@@ -113,4 +115,4 @@ const ActiveEntriesPage: React.FC = () => {
   );
 };
 
-export default ActiveEntriesPage; 
+export default ActiveEntriesPage;

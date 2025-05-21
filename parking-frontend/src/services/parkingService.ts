@@ -1,92 +1,43 @@
-import { api } from './api';
-import { 
-  Parking, 
-  ParkingEntry, 
-  ParkingTicket, 
-  ParkingBill,
-  CreateParkingDTO,
-  CreateParkingEntryDTO,
-  PaginatedResponse 
-} from '../types';
+// src/services/parkingService.ts
+import axios from 'axios';
+import { Parking, ParkingEntry, ParkingBill, CreateParkingEntryDTO, CreateParkingDTO, PaginatedResponse } from '../types';
 
-// Admin Services
-export const createParking = async (data: CreateParkingDTO): Promise<Parking> => {
-  const response = await api.post('/parkings', data);
-  return response.data;
-};
+const API_URL = 'http://your-backend-api'; // Replace with your backend API URL
 
-export const getParkings = async (): Promise<Parking[]> => {
-  const response = await api.get('/parkings');
-  return response.data;
-};
-
-export const getParking = async (code: string): Promise<Parking> => {
-  const response = await api.get<Parking>(`/parking/${code}`);
-  return response.data;
-};
-
-export const updateParking = async (code: string, parkingData: Partial<CreateParkingDTO>): Promise<Parking> => {
-  const response = await api.patch<Parking>(`/parking/${code}`, parkingData);
-  return response.data;
-};
-
-export const deleteParking = async (code: string): Promise<void> => {
-  await api.delete(`/parking/${code}`);
-};
-
-// Entry Services
 export const getActiveEntries = async (): Promise<ParkingEntry[]> => {
-  const response = await api.get('/parking-entries/active');
+  const response = await axios.get(`${API_URL}/parking-entries?status=active`);
   return response.data;
 };
 
-export const createParkingEntry = async (data: CreateParkingEntryDTO): Promise<ParkingEntry> => {
-  const response = await api.post('/parking-entries', data);
+export const getParkingEntry = async (entryId: number): Promise<ParkingEntry> => {
+  const response = await axios.get(`${API_URL}/parking-entries/${entryId}`);
   return response.data;
 };
 
-export const getParkingEntry = async (id: number): Promise<ParkingEntry> => {
-  const response = await api.get(`/parking-entries/${id}`);
+export const completeParkingEntry = async (entryId: number): Promise<ParkingBill> => {
+  const response = await axios.post(`${API_URL}/parking-entries/${entryId}/complete`);
   return response.data;
 };
 
-export const completeParkingEntry = async (id: number): Promise<ParkingBill> => {
-  const response = await api.post(`/parking-entries/${id}/complete`);
+export const getParkings = async (params?: { search?: string; limit?: number }): Promise<PaginatedResponse<Parking>> => {
+  const response = await axios.get(`${API_URL}/parkings`, { params });
   return response.data;
 };
 
-export const getParkingEntries = async (params?: {
-  page?: number;
-  limit?: number;
-  startDate?: string;
-  endDate?: string;
-  status?: 'active' | 'completed';
-}): Promise<PaginatedResponse<ParkingEntry>> => {
-  const response = await api.get<PaginatedResponse<ParkingEntry>>('/parking/entries', {
-    params: {
-      page: params?.page || 1,
-      limit: params?.limit || 10,
-      startDate: params?.startDate,
-      endDate: params?.endDate,
-      status: params?.status,
-    },
-  });
+export const getParkingEntries = async (params?: { status?: 'active' | 'completed'; limit?: number }): Promise<ParkingEntry[]> => {
+  const response = await axios.get(`${API_URL}/parking-entries`, { params });
   return response.data;
 };
 
-export const getParkingBills = async (params?: {
-  page?: number;
-  limit?: number;
-  startDate?: string;
-  endDate?: string;
-}): Promise<PaginatedResponse<ParkingBill>> => {
-  const response = await api.get<PaginatedResponse<ParkingBill>>('/parking/bills', {
-    params: {
-      page: params?.page || 1,
-      limit: params?.limit || 10,
-      startDate: params?.startDate,
-      endDate: params?.endDate,
-    },
-  });
+export const getParkingBills = async (params?: { limit?: number }): Promise<ParkingBill[]> => {
+  const response = await axios.get(`${API_URL}/bills`, { params });
   return response.data;
-}; 
+};
+
+export const createParkingEntry = async (data: CreateParkingEntryDTO): Promise<void> => {
+  await axios.post(`${API_URL}/parking-entries`, data);
+};
+
+export const createParking = async (data: CreateParkingDTO): Promise<void> => {
+  await axios.post(`${API_URL}/parkings`, data);
+};

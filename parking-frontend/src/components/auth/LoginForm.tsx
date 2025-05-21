@@ -1,4 +1,3 @@
-// src/components/auth/LoginForm.tsx
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
@@ -11,7 +10,7 @@ type LoginFormData = {
 };
 
 export default function LoginForm() {
-  const { login, user } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const {
     register,
@@ -19,27 +18,28 @@ export default function LoginForm() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>();
 
-  const onSubmit = async (data: LoginFormData) => {
-    try {
-      console.log('Attempting login with:', data);
-      const response = await login(data.email, data.password);
-      console.log('Login successful, user role:', response.user.role);
-      toast.success('Logged in successfully');
-      
-      // Redirect based on user role
-      if (response.user.role === 'admin') {
-        navigate('/admin/dashboard', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Invalid credentials';
-      console.error('Login failed:', errorMessage);
-      toast.error(errorMessage);
-    }
-  };
-
-  return (
+// In your LoginForm.tsx, update the onSubmit handler:
+const onSubmit = async (data: LoginFormData) => {
+  try {
+    console.log('Attempting login with:', data);
+    const { user, token } = await login(data.email, data.password);
+    console.log('Login successful! User:', user, 'Token:', token);
+    
+    toast.success('Logged in successfully');
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    console.log('Current auth state should be set now');
+    console.log('Navigating to:', user?.role === 'admin' ? '/admin/dashboard' : '/dashboard');
+    
+    navigate(user?.role === 'admin' ? '/admin/dashboard' : '/dashboard', { 
+      replace: true 
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    toast.error(error instanceof Error ? error.message : 'Login failed');
+  }
+};
+    return (
     <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-md">
       <h2 className="text-2xl font-bold text-center text-primary-dark mb-6">Login</h2>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

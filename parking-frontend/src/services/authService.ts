@@ -9,7 +9,8 @@ interface LoginCredentials {
 }
 
 interface RegisterData {
-  name: string;
+  firstname: string;
+  lastname:string;
   email: string;
   password: string;
   role?: string;
@@ -20,23 +21,14 @@ interface LoginResponse {
   user: User;
 }
 
-export const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
-  try {
-    const response = await axiosInstance.post<LoginResponse>('/auth/login', credentials);
-    return response.data;
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError;
-      if (axiosError.response?.status === 404) {
-        throw new Error('Login endpoint not found. Please check if the backend server is running.');
-      }
-      if (axiosError.response?.status === 401) {
-        throw new Error('Invalid email or password');
-      }
-      throw new Error(axiosError.message || 'Login failed. Please try again.');
-    }
-    throw error;
-  }
+// Update your login function in authService.ts
+export const login = async (credentials: { email: string; password: string }) => {
+  const response = await axiosInstance.post('/users/login', credentials);
+  
+  // Debug: Log the full response
+  console.log('Backend response:', response.data);
+  
+  return response.data; // Ensure this matches what your backend sends
 };
 
 export const register = async (userData: RegisterData) => {
@@ -71,7 +63,7 @@ export const getProfile = async (): Promise<User> => {
   }
 };
 
-export const updateProfile = async (data: { name: string; email: string }): Promise<User> => {
+export const updateProfile = async (data: { firstname: string;lastname:string; email: string }): Promise<User> => {
   try {
     const response = await axiosInstance.put('/users/profile', data);
     return response.data;

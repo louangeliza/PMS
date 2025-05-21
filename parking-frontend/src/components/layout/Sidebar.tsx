@@ -63,7 +63,7 @@ export function Sidebar() {
             </div>
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-700 truncate max-w-[120px]">
-                {user?.name || 'User Name'}
+                {user?.lastname || 'User Name'}
               </p>
               <Link
                 to="/profile"

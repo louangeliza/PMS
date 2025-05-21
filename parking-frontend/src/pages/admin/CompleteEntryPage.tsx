@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getParkingEntry, completeParkingEntry } from '../services/parkingService';
-import { ParkingEntry, ParkingBill } from '../types';
+import { getParkingEntry, completeParkingEntry, getParkings } from '../../services/parkingService';
+import { ParkingEntry, ParkingBill, Parking } from '../../types';
 import { toast } from 'react-hot-toast';
 
 const CompleteEntryPage: React.FC = () => {
@@ -9,18 +9,28 @@ const CompleteEntryPage: React.FC = () => {
   const { entryId } = useParams<{ entryId: string }>();
   const [entry, setEntry] = useState<ParkingEntry | null>(null);
   const [bill, setBill] = useState<ParkingBill | null>(null);
+  const [parking, setParking] = useState<Parking | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchEntry = async () => {
       if (!entryId) return;
-      
+
       try {
-        const data = await getParkingEntry(parseInt(entryId));
-        setEntry(data);
+        const entryIdNum = parseInt(entryId, 10);
+        if (isNaN(entryIdNum)) {
+          throw new Error('Invalid entry ID');
+        }
+        const [entryData, parkingsData] = await Promise.all([
+          getParkingEntry(entryIdNum),
+          getParkings(),
+        ]);
+        setEntry(entryData);
+        const parkingData = parkingsData.data.find((p: Parking) => p.code === entryData.parking_code);
+        setParking(parkingData || null);
       } catch (error) {
-        toast.error('Failed to fetch parking entry');
+        toast.error('Failed to fetch parking entry or parking details');
         navigate('/admin/active-entries');
       } finally {
         setLoading(false);
@@ -35,7 +45,11 @@ const CompleteEntryPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const billData = await completeParkingEntry(parseInt(entryId));
+      const entryIdNum = parseInt(entryId, 10);
+      if (isNaN(entryIdNum)) {
+        throw new Error('Invalid entry ID');
+      }
+      const billData = await completeParkingEntry(entryIdNum);
       setBill(billData);
       toast.success('Parking entry completed successfully');
     } catch (error) {
@@ -54,16 +68,16 @@ const CompleteEntryPage: React.FC = () => {
     );
   }
 
-  if (!entry) {
+  if (!entry || !parking) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-500">Entry not found.</p>
+        <p className="text-gray-500">Entry or parking details not found.</p>
       </div>
     );
   }
 
   const calculateDuration = () => {
-    const entryTime = new Date(entry.entry_time);
+    const entryTime = new Date(entry.entry_date_time);
     const exitTime = new Date();
     const durationMs = exitTime.getTime() - entryTime.getTime();
     const durationHours = Math.ceil(durationMs / (1000 * 60 * 60));
@@ -72,7 +86,7 @@ const CompleteEntryPage: React.FC = () => {
 
   const calculateCharge = () => {
     const duration = calculateDuration();
-    return duration * entry.parking.charge_per_hour;
+    return duration * parking.charge_per_hour;
   };
 
   return (
@@ -90,19 +104,15 @@ const CompleteEntryPage: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Parking Facility</p>
-                <p className="text-sm font-medium">{entry.parking.name}</p>
+                <p className="text-sm font-medium">{parking.name}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Vehicle Number</p>
-                <p className="text-sm font-medium">{entry.vehicle_number}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Vehicle Type</p>
-                <p className="text-sm font-medium">{entry.vehicle_type}</p>
+                <p className="text-sm font-medium">{entry.plate_number}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Entry Time</p>
-                <p className="text-sm font-medium">{new Date(entry.entry_time).toLocaleString()}</p>
+                <p className="text-sm font-medium">{new Date(entry.entry_date_time).toLocaleString()}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Duration</p>
@@ -125,7 +135,7 @@ const CompleteEntryPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Exit Time</p>
-                  <p className="text-sm font-medium">{new Date(bill.exit_time).toLocaleString()}</p>
+                  <p className="text-sm font-medium">{new Date(bill.exit_date_time).toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -134,7 +144,7 @@ const CompleteEntryPage: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-700">Estimated Charge</h2>
               <p className="text-2xl font-bold text-blue-600">${calculateCharge().toFixed(2)}</p>
               <p className="text-sm text-gray-500 mt-1">
-                Based on {calculateDuration()} hours at ${entry.parking.charge_per_hour}/hour
+                Based on {calculateDuration()} hours at ${parking.charge_per_hour}/hour
               </p>
             </div>
           )}
@@ -164,4 +174,4 @@ const CompleteEntryPage: React.FC = () => {
   );
 };
 
-export default CompleteEntryPage; 
+export default CompleteEntryPage;

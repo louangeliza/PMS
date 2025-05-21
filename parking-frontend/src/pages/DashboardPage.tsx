@@ -1,15 +1,17 @@
-// src/pages/DashboardPage.tsx
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getParkings } from '../services/parkingService';
 import { Parking } from '../types';
 import { toast } from 'react-hot-toast';
+import { Link } from 'react-router-dom';
+import { DashboardLayout } from '../components/layout/DashboardLayout';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const DashboardPage: React.FC = () => {
-  const { user } = useAuth();
+  const navigate = useNavigate();
   const [parkings, setParkings] = useState<Parking[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchParkings = async () => {
@@ -28,66 +30,110 @@ const DashboardPage: React.FC = () => {
   }, [searchTerm]);
 
   if (loading) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+    return (
+      <DashboardLayout title="Dashboard">
+        <LoadingSpinner fullScreen />
+      </DashboardLayout>
+    );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Available Parking</h1>
-      
-      {/* Search Bar */}
-      <div className="mb-6">
-        <input
-          type="text"
-          placeholder="Search by location or parking name..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      {/* Parking List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {parkings.map((parking) => (
-          <div key={parking.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="p-6">
-              <h2 className="text-xl font-semibold mb-2">{parking.name}</h2>
-              <p className="text-gray-600 mb-4">{parking.location}</p>
-              
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <p className="text-sm text-gray-500">Available Spaces</p>
-                  <p className="text-lg font-semibold">{parking.available_spaces}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Rate per Hour</p>
-                  <p className="text-lg font-semibold">${parking.charge_per_hour}</p>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Parking Code: {parking.code}</span>
-                <button
-                  onClick={() => {
-                    // Handle parking selection
-                    toast.success(`Selected ${parking.name}`);
-                  }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Select
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {parkings.length === 0 && (
-        <div className="text-center py-8">
-          <p className="text-gray-500">No parking facilities found</p>
+    <DashboardLayout title="Dashboard">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Parking Facilities</h1>
+        <div className="flex space-x-4">
+          <Link
+            to="/vehicles/add"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Add Vehicle
+          </Link>
+          <Link
+            to="/requests/new"
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+          >
+            New Request
+          </Link>
         </div>
-      )}
-    </div>
+      </div>
+
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="Search parking facilities..."
+        className="mb-4 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+      />
+
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Name
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Location
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Available Spaces
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {parkings.map((parking) => (
+              <tr key={parking.id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {parking.name}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {parking.location}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {parking.available_spaces}/{parking.total_spaces}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <button
+                    onClick={() => navigate(`/requests/new?parkingId=${parking.id}`)}
+                    className="text-blue-600 hover:text-blue-900 mr-4"
+                  >
+                    Request
+                  </button>
+                  <Link
+                    to={`/vehicles/add?parkingId=${parking.id}`}
+                    className="text-green-600 hover:text-green-900"
+                  >
+                    Add Vehicle
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="font-semibold text-gray-700">Total Parkings</h3>
+          <p className="text-2xl font-bold">{parkings.length}</p>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="font-semibold text-gray-700">Available Spaces</h3>
+          <p className="text-2xl font-bold">
+            {parkings.reduce((sum, parking) => sum + parking.available_spaces, 0)}
+          </p>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="font-semibold text-gray-700">Total Capacity</h3>
+          <p className="text-2xl font-bold">
+            {parkings.reduce((sum, parking) => sum + parking.total_spaces, 0)}
+          </p>
+        </div>
+      </div>
+    </DashboardLayout>
   );
 };
 

@@ -4,6 +4,8 @@ import { getParkings, getParkingEntries, getParkingBills } from '../services/par
 import { Parking, ParkingEntry, ParkingBill } from '../types';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
+import { DashboardLayout } from '../components/layout/DashboardLayout';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const AdminDashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -18,12 +20,12 @@ const AdminDashboardPage: React.FC = () => {
         const [parkingsData, entriesData, billsData] = await Promise.all([
           getParkings({ limit: 5 }),
           getParkingEntries({ status: 'active', limit: 5 }),
-          getParkingBills({ limit: 5 })
+          getParkingBills({ limit: 5 }),
         ]);
 
         setParkings(parkingsData.data);
-        setActiveEntries(entriesData.data);
-        setRecentBills(billsData.data);
+        setActiveEntries(entriesData);
+        setRecentBills(billsData);
       } catch (error) {
         toast.error('Failed to load dashboard data');
         console.error('Dashboard data error:', error);
@@ -36,16 +38,18 @@ const AdminDashboardPage: React.FC = () => {
   }, []);
 
   if (loading) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+    return (
+      <DashboardLayout title="Admin Dashboard">
+        <LoadingSpinner fullScreen />
+      </DashboardLayout>
+    );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
+    <DashboardLayout title="Admin Dashboard">
       <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Welcome, {user?.name}</h2>
-        
-        {/* Quick Actions */}
+        <h2 className="text-xl font-semibold mb-4">Welcome, {user?.lastname}</h2>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Link
             to="/admin/parking/new"
@@ -54,7 +58,7 @@ const AdminDashboardPage: React.FC = () => {
             <h3 className="font-semibold text-blue-700">Add New Parking</h3>
             <p className="text-sm text-gray-600 mt-2">Register a new parking facility</p>
           </Link>
-          
+
           <Link
             to="/admin/entries/new"
             className="bg-green-50 p-4 rounded-lg hover:bg-green-100 transition-colors"
@@ -62,7 +66,7 @@ const AdminDashboardPage: React.FC = () => {
             <h3 className="font-semibold text-green-700">New Entry</h3>
             <p className="text-sm text-gray-600 mt-2">Record a new vehicle entry</p>
           </Link>
-          
+
           <Link
             to="/admin/entries/active"
             className="bg-purple-50 p-4 rounded-lg hover:bg-purple-100 transition-colors"
@@ -72,7 +76,6 @@ const AdminDashboardPage: React.FC = () => {
           </Link>
         </div>
 
-        {/* Parking Facilities */}
         <div className="mb-8">
           <h3 className="text-lg font-semibold mb-4">Parking Facilities</h3>
           <div className="overflow-x-auto">
@@ -90,8 +93,10 @@ const AdminDashboardPage: React.FC = () => {
                   <tr key={parking.id}>
                     <td className="px-6 py-4 whitespace-nowrap">{parking.code}</td>
                     <td className="px-6 py-4 whitespace-nowrap">{parking.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{parking.available_spaces}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">${parking.charge_per_hour}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {parking.available_spaces} / {parking.total_spaces}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">${parking.charge_per_hour.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -99,7 +104,6 @@ const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Active Entries */}
         <div className="mb-8">
           <h3 className="text-lg font-semibold mb-4">Active Entries</h3>
           <div className="overflow-x-auto">
@@ -135,7 +139,6 @@ const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Recent Bills */}
         <div>
           <h3 className="text-lg font-semibold mb-4">Recent Bills</h3>
           <div className="overflow-x-auto">
@@ -162,8 +165,8 @@ const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 
-export default AdminDashboardPage; 
+export default AdminDashboardPage;

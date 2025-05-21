@@ -7,7 +7,8 @@ import { toast } from 'react-hot-toast';
 import { updateProfile } from '../services/authService'; // Assume this service exists or create it
 
 type FormData = {
-  name: string;
+  firstname: string;
+  lastname:string;
   email: string;
 };
 
@@ -15,7 +16,8 @@ export default function ProfilePage() {
   const { user, loading } = useAuth();
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
-      name: user?.name || '',
+      firstname: user?.firstname || '',
+      lastname: user?.lastname,
       email: user?.email || '',
     },
   });
@@ -36,16 +38,26 @@ export default function ProfilePage() {
   return (
     <DashboardLayout title="Profile">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-md mx-auto">
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-            Name
+      <div>
+          <label htmlFor="firstname" className="block text-sm font-medium text-gray-700">
+            First Name
           </label>
           <input
-            {...register('name', { required: 'Name is required' })}
-            id="name"
+            {...register('firstname', { required: 'firstname is required' })}
+            id="firstname"
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
           />
-          {errors.name && <p className="mt-2 text-sm text-red-600">{errors.name.message}</p>}
+          {errors.firstname && <p className="mt-2 text-sm text-red-600">{errors.firstname.message}</p>}
+        </div> <div>
+          <label htmlFor="lastname" className="block text-sm font-medium text-gray-700">
+            Last Name
+          </label>
+          <input
+            {...register('lastname', { required: 'lastname is required' })}
+            id="lastname"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+          />
+          {errors.lastname && <p className="mt-2 text-sm text-red-600">{errors.lastname.message}</p>}
         </div>
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700">
