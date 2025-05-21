@@ -7,72 +7,84 @@ const addCarEntry = async (req, res) => {
 
     // Validate required fields
     if (!plateNo || !parkingCode || !entryTime) {
-      return res.status(400).json({ error: 'Plate number, parking code, and entry time are required' });
+      return res.status(400).json({ error: 'All fields are required' });
     }
 
-    // Find the parking lot by code
+    // Find the parking lot and check available spaces
     const parkingLot = await ParkingLot.findOne({ code: parkingCode });
     if (!parkingLot) {
-      return res.status(404).json({ error: `Parking lot with code ${parkingCode} not found` });
+      return res.status(404).json({ error: 'Parking lot not found' });
     }
 
-    // Check for available spaces
-    if (parkingLot.spaces <= 0) {
-      return res.status(400).json({ error: `Parking lot ${parkingCode} is full` });
+    if (parkingLot.available_spaces <= 0) {
+      return res.status(400).json({ error: 'No available spaces in this parking lot' });
     }
 
-    // Check if a car with the same plate number is already parked in this lot (optional, depending on system rules)
-    const existingEntry = await CarEntry.findOne({
-      plateNo: plateNo,
-      parkingLotId: parkingLot._id,
-      exitTime: null, // Check for entries that haven't exited yet
-    });
-    if (existingEntry) {
-        return res.status(400).json({ error: `Car with plate number ${plateNo} is already parked in lot ${parkingCode}` });
-    }
-
-    // Create a new car entry instance
-    const newCarEntry = new CarEntry({
+    // Create new car entry
+    const carEntry = new CarEntry({
       plateNo,
-      parkingLotId: parkingLot._id, // Use the ObjectId of the found parking lot
-      userId: req.user.id, // Assuming user is authenticated and req.user contains user info
-      entryTime: new Date(entryTime), // Ensure entryTime is a Date object
-      exitTime: null, // Initially null
-      charge: 0, // Initially 0
+      parkingCode,
+      entryTime,
+      userId: req.user.id,
+      parkingLotId: parkingLot._id
     });
 
-    // Use a Mongoose session for atomicity
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    // Decrease available spaces
+    parkingLot.available_spaces -= 1;
+    await parkingLot.save();
 
-    try {
-      // Save the new car entry
-      await newCarEntry.save({ session });
-
-      // Decrement the available spaces in the parking lot
-      parkingLot.spaces -= 1;
-      await parkingLot.save({ session });
-
-      await session.commitTransaction();
-      session.endSession();
-
-      // Return the new car entry (ticket details)
-      res.status(201).json({
-        id: newCarEntry._id,
-        plateNo: newCarEntry.plateNo,
-        parkingLot: parkingLot.code,
-        entryTime: newCarEntry.entryTime,
-        message: 'Car entry registered successfully. Use this ID for exit bill generation.'
-      });
-    } catch (transactionError) {
-      await session.abortTransaction();
-      session.endSession();
-      throw transactionError; // Re-throw to be caught by the outer catch block
-    }
-
+    await carEntry.save();
+    res.status(201).json(carEntry);
   } catch (error) {
     console.error('Error adding car entry:', error);
-    res.status(500).json({ error: 'Server error: Could not add car entry' });
+    res.status(500).json({ error: 'Failed to add car entry' });
+  }
+};
+
+const completeCarEntry = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { exitTime } = req.body;
+
+    if (!exitTime) {
+      return res.status(400).json({ error: 'Exit time is required' });
+    }
+
+    const carEntry = await CarEntry.findById(id);
+    if (!carEntry) {
+      return res.status(404).json({ error: 'Car entry not found' });
+    }
+
+    if (carEntry.exitTime) {
+      return res.status(400).json({ error: 'Car entry already completed' });
+    }
+
+    // Calculate duration and fee
+    const entryTime = new Date(carEntry.entryTime);
+    const exitTimeDate = new Date(exitTime);
+    const durationHours = (exitTimeDate - entryTime) / (1000 * 60 * 60);
+
+    const parkingLot = await ParkingLot.findOne({ code: carEntry.parkingCode });
+    if (!parkingLot) {
+      return res.status(404).json({ error: 'Parking lot not found' });
+    }
+
+    const totalAmount = Math.ceil(durationHours) * parkingLot.feePerHour;
+
+    // Update car entry
+    carEntry.exitTime = exitTime;
+    carEntry.duration_hours = durationHours;
+    carEntry.total_amount = totalAmount;
+    await carEntry.save();
+
+    // Increase available spaces
+    parkingLot.available_spaces += 1;
+    await parkingLot.save();
+
+    res.json(carEntry);
+  } catch (error) {
+    console.error('Error completing car entry:', error);
+    res.status(500).json({ error: 'Failed to complete car entry' });
   }
 };
 
@@ -311,12 +323,28 @@ const getClientCarEntries = async (req, res) => {
   }
 };
 
+const getActiveEntries = async (req, res) => {
+  try {
+    // Find car entries where exitTime is null (meaning they are still active)
+    const activeEntries = await CarEntry.find({
+      exitTime: null
+    }).populate('parkingLotId userId'); // Populate related data
+
+    res.status(200).json(activeEntries);
+  } catch (error) {
+    console.error('Error fetching active car entries:', error);
+    res.status(500).json({ error: 'Server error: Could not fetch active car entries' });
+  }
+};
+
 module.exports = {
   addCarEntry,
+  completeCarEntry,
   generateExitBill,
   getOutgoingCarEntries,
   getIncomingCarEntries,
   getChargesReport,
   getAllCarEntriesByDateRange,
   getClientCarEntries,
+  getActiveEntries,
 };

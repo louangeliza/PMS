@@ -1,12 +1,11 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { createParking } from '../../services/parkingService';
+import { createParkingLot } from '../../services/api';
 import { CreateParkingDTO } from '../../types';
 import { toast } from 'react-hot-toast';
-import { DashboardLayout } from '../../components/layout/DashboardLayout';
 
-const AddParkingPage: React.FC = () => {
+const AddParkingLotPage: React.FC = () => {
   const navigate = useNavigate();
   const {
     register,
@@ -16,28 +15,30 @@ const AddParkingPage: React.FC = () => {
 
   const onSubmit = async (data: CreateParkingDTO) => {
     try {
-      await createParking(data);
-      toast.success('Parking facility added successfully');
-      navigate('/admin/dashboard');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to add parking facility';
-      toast.error(errorMessage);
+      await createParkingLot(data);
+      toast.success('Parking lot created successfully');
+      navigate('/admin/parking-lots');
+    } catch (error: any) {
+      console.error('Error creating parking lot:', error);
+      toast.error(error.response?.data?.error || 'Failed to create parking lot');
     }
   };
 
   return (
-    <DashboardLayout title="Add Parking Facility">
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">Add New Parking Lot</h1>
+
       <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
             <label htmlFor="code" className="block text-sm font-medium text-gray-700">
-              Code
+              Parking Lot Code
             </label>
             <input
               type="text"
               id="code"
               {...register('code', {
-                required: 'Code is required',
+                required: 'Parking lot code is required',
                 pattern: {
                   value: /^[A-Z0-9]+$/,
                   message: 'Code must contain only uppercase letters and numbers',
@@ -54,14 +55,12 @@ const AddParkingPage: React.FC = () => {
 
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-              Name
+              Parking Lot Name
             </label>
             <input
               type="text"
               id="name"
-              {...register('name', {
-                required: 'Name is required',
-              })}
+              {...register('name', { required: 'Parking lot name is required' })}
               className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
                 errors.name ? 'border-red-500' : ''
               }`}
@@ -78,6 +77,7 @@ const AddParkingPage: React.FC = () => {
             <input
               type="number"
               id="total_spaces"
+              min="1"
               {...register('total_spaces', {
                 required: 'Total spaces is required',
                 min: {
@@ -101,9 +101,7 @@ const AddParkingPage: React.FC = () => {
             <input
               type="text"
               id="location"
-              {...register('location', {
-                required: 'Location is required',
-              })}
+              {...register('location', { required: 'Location is required' })}
               className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
                 errors.location ? 'border-red-500' : ''
               }`}
@@ -115,17 +113,18 @@ const AddParkingPage: React.FC = () => {
 
           <div>
             <label htmlFor="feePerHour" className="block text-sm font-medium text-gray-700">
-              Fee per Hour ($)
+              Fee per Hour
             </label>
             <input
               type="number"
               id="feePerHour"
               step="0.01"
+              min="0"
               {...register('feePerHour', {
                 required: 'Fee per hour is required',
                 min: {
                   value: 0,
-                  message: 'Fee per hour must be 0 or greater',
+                  message: 'Fee per hour must be non-negative',
                 },
               })}
               className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
@@ -140,7 +139,7 @@ const AddParkingPage: React.FC = () => {
           <div className="flex justify-end space-x-4">
             <button
               type="button"
-              onClick={() => navigate('/admin/dashboard')}
+              onClick={() => navigate('/admin/parking-lots')}
               className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               Cancel
@@ -152,13 +151,13 @@ const AddParkingPage: React.FC = () => {
                 isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
               }`}
             >
-              {isSubmitting ? 'Adding...' : 'Add Parking Facility'}
+              {isSubmitting ? 'Creating...' : 'Create Parking Lot'}
             </button>
           </div>
         </form>
       </div>
-    </DashboardLayout>
+    </div>
   );
 };
 
-export default AddParkingPage; 
+export default AddParkingLotPage; 

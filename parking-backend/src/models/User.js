@@ -11,10 +11,19 @@ const userSchema = new mongoose.Schema({
 const parkingLotSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true },
   name: { type: String, required: true },
-  spaces: { type: Number, required: true },
+  total_spaces: { type: Number, required: true },
+  available_spaces: { type: Number, required: true },
   location: { type: String, required: true },
   feePerHour: { type: Number, required: true },
 }, { timestamps: true });
+
+// Add a pre-save hook to ensure available_spaces doesn't exceed total_spaces
+parkingLotSchema.pre('save', function(next) {
+  if (this.available_spaces > this.total_spaces) {
+    this.available_spaces = this.total_spaces;
+  }
+  next();
+});
 
 const carEntrySchema = new mongoose.Schema({
   plateNo: { type: String, required: true },

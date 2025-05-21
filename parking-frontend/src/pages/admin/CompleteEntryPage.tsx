@@ -86,7 +86,7 @@ const CompleteEntryPage: React.FC = () => {
 
   const calculateCharge = () => {
     const duration = calculateDuration();
-    return duration * parking.charge_per_hour;
+    return duration * parking.feePerHour;
   };
 
   return (
@@ -144,7 +144,7 @@ const CompleteEntryPage: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-700">Estimated Charge</h2>
               <p className="text-2xl font-bold text-blue-600">${calculateCharge().toFixed(2)}</p>
               <p className="text-sm text-gray-500 mt-1">
-                Based on {calculateDuration()} hours at ${parking.charge_per_hour}/hour
+                Based on {calculateDuration()} hours at ${parking.feePerHour}/hour
               </p>
             </div>
           )}

@@ -3,12 +3,12 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth'; // Updated import
 import LoadingSpinner from './components/ui/LoadingSpinner';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
+import AddCarEntryPage from './pages/AddCarEntryPage';
 
 // Lazy-loaded components
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
-const AddVehiclePage = lazy(() => import('./pages/AddVehiclePage'));
 const EditVehiclePage = lazy(() => import('./pages/EditVehiclePage'));
 const NewRequestPage = lazy(() => import('./pages/NewRequestPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
@@ -61,7 +61,7 @@ export default function AppRoutes() {
           path="/admin/entries/new"
           element={
             <RoleProtectedRoute allowedRoles={['admin']}>
-              <NewEntryPage />
+              <AddCarEntryPage />
             </RoleProtectedRoute>
           }
         />
@@ -92,10 +92,10 @@ export default function AppRoutes() {
           }
         />
         <Route
-          path="/vehicles/add"
+          path="/entries/new"
           element={
             <ProtectedRoute>
-              <AddVehiclePage />
+              <AddCarEntryPage />
             </ProtectedRoute>
           }
         />

@@ -30,7 +30,7 @@ router.use(authenticate);
  *             required:
  *               - code
  *               - name
- *               - spaces
+ *               - total_spaces
  *               - location
  *               - feePerHour
  *             properties:
@@ -42,9 +42,13 @@ router.use(authenticate);
  *                 type: string
  *                 description: Name of the parking lot.
  *                 example: Main Parking Area
- *               spaces:
+ *               total_spaces:
  *                 type: number
  *                 description: Total number of parking spaces.
+ *                 example: 100
+ *               available_spaces:
+ *                 type: number
+ *                 description: Number of available parking spaces (set automatically by backend).
  *                 example: 100
  *               location:
  *                 type: string

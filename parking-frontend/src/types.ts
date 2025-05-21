@@ -5,13 +5,16 @@ export interface BaseDocument {
   updated_at: string;
 }
 
-export interface Parking extends BaseDocument {
+export interface Parking {
+  id: string;
   code: string;
   name: string;
   total_spaces: number;
   available_spaces: number;
   location: string;
-  charge_per_hour: number;
+  feePerHour: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ParkingEntry {
@@ -45,16 +48,18 @@ export interface ParkingTicket extends BaseDocument {
 }
 
 export interface CreateParkingEntryDTO {
-  parking_code: string;
   plate_number: string;
+  parking_code: string;
+  entry_time: string;
 }
 
 export interface CreateParkingDTO {
   code: string;
   name: string;
   total_spaces: number;
+  available_spaces: number;
   location: string;
-  charge_per_hour: number;
+  feePerHour: number;
 }
 
 export type UserRole = 'admin' | 'client';

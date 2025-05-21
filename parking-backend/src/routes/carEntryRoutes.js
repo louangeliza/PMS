@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { addCarEntry, generateExitBill, getOutgoingCarEntries, getIncomingCarEntries, getChargesReport, getAllCarEntriesByDateRange, getClientCarEntries } = require('../controllers/carEntr'); // Import controller functions
+const { addCarEntry, generateExitBill, getOutgoingCarEntries, getIncomingCarEntries, getChargesReport, getAllCarEntriesByDateRange, getClientCarEntries, getActiveEntries } = require('../controllers/carEntr'); // Import controller functions
 const { authenticate, authorizeRoles } = require('../middleware/auth'); // Import authenticate and authorizeRoles
 
 /**
@@ -322,5 +322,32 @@ router.get('/all', authorizeRoles('admin'), getAllCarEntriesByDateRange);
  */
 // Route for clients to view their own car entries
 router.get('/my-entries', authorizeRoles('client'), getClientCarEntries);
+
+/**
+ * @swagger
+ * /entries/active:
+ *   get:
+ *     summary: Get all active car entries (Admin only)
+ *     tags: [Car Entries]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Active car entries retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/CarEntry'
+ *       401:
+ *         description: Unauthorized (missing or invalid token)
+ *       403:
+ *         description: Forbidden (user is not an admin)
+ *       500:
+ *         description: Server error
+ */
+// Route to get active car entries (Admin only)
+router.get('/active', authorizeRoles('admin'), getActiveEntries);
 
 module.exports = router; 

@@ -3,11 +3,19 @@ const { ParkingLot } = require('../models/User'); // Import ParkingLot model
 
 const addParkingLot = async (req, res) => {
   try {
-    const { code, name, spaces, location, feePerHour } = req.body;
+    const { code, name, total_spaces, location, feePerHour } = req.body;
 
     // Validate required fields
-    if (!code || !name || spaces === undefined || !location || feePerHour === undefined) {
-      return res.status(400).json({ error: 'All parking lot details (code, name, spaces, location, feePerHour) are required' });
+    if (!code || !name || total_spaces === undefined || !location || feePerHour === undefined) {
+      return res.status(400).json({ error: 'All parking lot details (code, name, total_spaces, location, feePerHour) are required' });
+    }
+    
+    // Validate numeric fields
+    if (isNaN(total_spaces) || total_spaces <= 0) {
+      return res.status(400).json({ error: 'Total spaces must be a positive number' });
+    }
+    if (isNaN(feePerHour) || feePerHour < 0) {
+      return res.status(400).json({ error: 'Fee per hour must be a non-negative number' });
     }
 
     // Check if a parking lot with the same code already exists
@@ -20,7 +28,8 @@ const addParkingLot = async (req, res) => {
     const newParkingLot = new ParkingLot({
       code,
       name,
-      spaces,
+      total_spaces,
+      available_spaces: total_spaces, // Initially set available spaces to total spaces
       location,
       feePerHour,
     });
